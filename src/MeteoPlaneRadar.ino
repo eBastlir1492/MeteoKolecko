@@ -18,9 +18,10 @@
 //    3) Settings       - brightness, WiFi, location
 //
 //  Controls (both radar screens):
-//    - swipe left/right            = change the range
-//    - short tap                   = aircraft detail / selection
-//    - long press                  = switch screen (Planes -> Meteo -> Settings)
+//    - swipe left/right             = change the range
+//    - short tap                    = aircraft detail / selection
+//    - long press LEFT half         = previous screen
+//    - long press RIGHT half        = next screen
 //    - hold BOOT at startup (~3 s)  = factory reset
 //
 //  Anti-flicker (verified, ported from the SatRadar project):
@@ -46,8 +47,20 @@
 // Inspired
 // https://github.com/MatixYo/ESP32-Plane-Radar
 // https://github.com/Selbyl/ESP32-S30Touch-LCD-2.1_Plane-Radar
+// https://github.com/mylms/ESP-MeteoRadar/tree/main 
 //
 //  Licence: MIT (see the LICENSE file).
+//
+//  Version:
+//  v0.2 - initial version
+//  v0.3 - Robust ADS-B fetch: the whole HTTP body is now read into a reusable PSRAM buffer and only parsed once complete 
+//  (with a Content-Length truncation check and one retry), instead of parsing straight 
+//  off the TLS stream — this fixes the intermittent "IncompleteInput" download errors. 
+//  Parsing now uses an ArduinoJson filter (keeping only the fields we use), ground aircraft are dropped at parse time, 
+//  the poll interval scales with range (5/10/15 s) and doubles after a failed fetch to go easier on the free adsb.fi API, 
+//  and the aircraft cap (ADSB_MAX) was raised from 40 to 100. Controls changed: a long press now switches screens directionally 
+//  (left half = previous, right half = next, with wrap-around) instead of blind-cycling through them.
+//
 // =============================================================================
 
 #include <Arduino_GFX_Library.h>
@@ -142,9 +155,11 @@ static void enterActive() {
   drawActive();
 }
 
-// Long press cycles through the screens.
-static void cycleScreen() {
-  s_screen = (s_screen + 1) % SCREEN_COUNT;
+// Long press switches screens by direction: dir -1 = previous, +1 = next.
+// Wraps around so both sides always do something (the dots at the top show
+// where you are).
+static void switchScreen(int dir) {
+  s_screen = (s_screen + dir + SCREEN_COUNT) % SCREEN_COUNT;
   Serial.printf("Screen: %d\n", s_screen);
   enterActive();
 }
@@ -261,9 +276,10 @@ void loop() {
       if (activeModalOpen()) { ScreenPlanes_CloseDetail(); drawActive(); }
       else                   { activeChangeRange(dx < 0 ? +1 : -1); drawActive(); }
     } else if (smallMove && dur >= 500) {
-      // Long press -> switch screen (or close an open detail first).
+      // Long press -> switch screen by side: left half = previous, right half =
+      // next (or close an open detail first).
       if (activeModalOpen()) { ScreenPlanes_CloseDetail(); drawActive(); }
-      else                     cycleScreen();
+      else switchScreen(lastX < LCD_WIDTH / 2 ? -1 : +1);
     } else if (smallMove && dur < 500) {
       // Short tap -> aircraft detail / selection.
       if (activeTap(lastX, lastY)) drawActive();

@@ -31,6 +31,16 @@ static int s_rangeIdx = 1;   // 25 km by default
 
 static float currentRange() { return RANGES_KM[s_rangeIdx]; }
 
+// Base poll interval by range. Larger areas return more data and are less
+// time-critical, so they are polled less often - keeps us a light user of the
+// free adsb.fi API.
+static unsigned long basePeriodMs() {
+  float r = currentRange();
+  if (r <= 25.0f) return 5000;    // 10 / 25 km
+  if (r <= 50.0f) return 10000;   // 50 km
+  return 15000;                   // 100 km
+}
+
 static unsigned long s_nextFetch = 0;
 static bool  s_dataOk = false;
 static String s_status = "Starting...";
@@ -151,7 +161,10 @@ bool ScreenPlanes_Tick() {
     s_status = "Fetching...";
     s_dataOk = ADSB_Fetch(Settings_Lat(), Settings_Lon(), currentRange());
     s_status = s_dataOk ? "OK" : "Error";
-    s_nextFetch = millis() + (s_dataOk ? 5000 : 15000);
+    // Normal cadence depends on range; after a failure back off to double the
+    // interval rather than hammering the API at the normal rate.
+    unsigned long period = basePeriodMs();
+    s_nextFetch = millis() + (s_dataOk ? period : period * 2);
     // Nothing to fix up here: the selection is an ICAO hex, not an index, so a
     // reordered list cannot move it onto a different aircraft. Whether the
     // selected aircraft is still present is resolved at draw time via
