@@ -41,6 +41,8 @@ Konfigurace: **PSRAM = OPI**, **Flash = 16 MB**, **Partition scheme = 16 MB FLAS
   callsign u letadla, kroužek u vybraného letu a plovoucí detailní panel.
   Odolné vůči **nekompletnímu / uříznutému JSON** — při chybě stahování zůstanou
   poslední platná data místo zablikání na prázdno.
+  Časový internal stahování JSON na základě rozsahu - 5s (10/25km), 10s (50km) a 15s (100km). Při chybě stažení
+  dat se internal zdvojnásobí.
 - **Meteoradar ČHMÚ** — srážkový kompozit s **animací** (až 6 snímků, krok
   5 min, ~2 sn./s, pauza mezi cykly), **indikací času** ke každému snímku
   („nyní / −X min“ + HH:MM), legendou dBZ / mm/h, obrysem ČR a městy. Obraz je
@@ -59,7 +61,8 @@ Ovládá se gesty na dotykovém displeji:
 |---|---|
 | **Swipe** vlevo/vpravo | změna rozsahu (na letadlech i meteoradaru) |
 | **Krátký stisk** | výběr letadla / detail (zavření klepnutím mimo) |
-| **Dlouhý stisk** | přepnutí obrazovky: Letadla → Meteoradar → Nastavení |
+| **Dlouhý stisk vlevo** | přepnutí obrazovky na předchozázející obrazovku (Letadla → Meteoradar → Nastavení) |
+| **Dlouhý stisk vpravo** | přepnutí obrazovky na nadcházející obrazovku (Letadla → Meteoradar → Nastavení) |
 | **Držení BOOT při startu (~3 s)** | tovární reset (WiFi + nastavení) |
 
 Při prvním zapnutí (nebo po resetu) vytvoří zařízení WiFi síť
@@ -83,7 +86,7 @@ Arduino IDE, **ESP32 core 3.x**, a knihovny z Library Manageru:
 1. V Arduino IDE nainstalujte ESP32 core (3.x) a výše uvedené knihovny.
 2. Otevřete `src/MeteoPlaneRadar.ino` (název složky a `.ino` se musí shodovat).
 3. Deska: **ESP32‑S3**, PSRAM **OPI**, Flash **16 MB**, partition s dostatkem
-   místa pro aplikaci.
+   místa pro aplikaci (například 3MB App/ 9.9 MB FATFS).
 4. Nahrajte a připojte se k WiFi síti `MeteoPlaneRadar` pro prvotní nastavení.
 
 Nebo stáhněte přibalený BIN soubor a nahrajte ho do desky na https://esp32flasher.chiptron.cz
@@ -107,10 +110,19 @@ využívání používaných API! Nad rámec licence budeme rádi, když na obra
 řádek **chiptron.cz** ve stejné velikosti a barvě jako v originále — je to prosba, ne podmínka.
 
 ## Inspirace 
-Tento projekt nevznikl z ničeho. Navazuje na dva existující:
+Tento projekt nevznikl z ničeho. Navazuje na tři existující:
+
 [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar) - původní radar letadel a zdroj adsb.fi
+
 [Selbyl/ESP32-S30Touch-LCD-2.1_Plane-Radar](https://github.com/Selbyl/ESP32-S30Touch-LCD-2.1_Plane-Radar) - port na Waveshare 480×480
+
+[https://github.com/mylms/ESP-MeteoRadar/tree/main ](https://github.com/mylms/ESP-MeteoRadar/tree/main ) - ČHMÚ srážkový meteoradar
 
 ## Vývoj
 
-Vyvinul **[chiptron.cz](https://chiptron.cz)**.
+Vyvinul **[chiptron.cz](https://chiptron.cz)**. Článek o projektu najdete na [https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/](https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/)
+
+## Verze
+v0.2 - init
+
+v0.3 - Robustní stahování ADS-B: celé HTTP tělo se teď načte do znovupoužitelného PSRAM bufferu a parsuje se až kompletní (s kontrolou utnutí proti Content-Length a jedním retry), místo parsování přímo z TLS streamu — tím mizí občasné chyby stahování „IncompleteInput". Parsování nově používá ArduinoJson filtr (nechá jen pole, která používáme), pozemní letadla se zahazují už při parsu, perioda stahování se odvíjí od rozsahu (5/10/15 s) a po neúspěšném stažení se zdvojnásobí, aby se šetřilo volné API adsb.fi, a limit letadel (ADSB_MAX) se zvedl ze 40 na 100. Změna ovládání: dlouhý stisk teď přepíná obrazovky směrově (levá půlka = předchozí, pravá = následující, s přetočením dokola) místo slepého cyklení.
