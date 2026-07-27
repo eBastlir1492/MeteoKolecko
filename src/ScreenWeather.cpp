@@ -19,6 +19,7 @@
 #include "ScreenWeather.h"
 #include "CHMU.h"
 #include "Settings.h"
+#include "Config.h"
 #include "UI.h"
 #include "Display_ST7701.h"
 #include "CzBorder.h"
@@ -36,7 +37,7 @@ static const int CY     = LCD_HEIGHT / 2;   // 240
 static const int DISP_R = LCD_WIDTH  / 2 - 2;  // 238 - pixels beyond this are masked off
 
 // Ranges (radius in km, mapped onto the display height).
-static const float RANGES_KM[] = {25.0f, 50.0f, 100.0f, 200.0f};
+static const float RANGES_KM[] = METEO_RANGES_KM;
 static const int   RANGE_COUNT = sizeof(RANGES_KM) / sizeof(RANGES_KM[0]);
 static int s_rangeIdx = 1;
 static float currentRange() { return RANGES_KM[s_rangeIdx]; }
@@ -251,6 +252,16 @@ static void drawOverlay() {
 }
 
 void ScreenWeather_Enter() {
+  // Restore the last range. Do NOT force a rebuild here: a range change already
+  // sets s_needRebuild in ScreenWeather_ChangeRange(), and the very first load
+  // is handled by the s_frameCount == 0 branch in Tick(). Forcing it would
+  // re-decode all six PNGs on every visit to this screen.
+  uint8_t saved = Settings_MeteoRange();
+  if (saved >= RANGE_COUNT) saved = 1;             // guard against a stale value
+  if (saved != s_rangeIdx) {                       // only when it actually differs
+    s_rangeIdx = saved;
+    s_needRebuild = true;
+  }
   s_lastStep = millis();
   s_gap = false;
   s_curFrame = 0;
@@ -258,6 +269,7 @@ void ScreenWeather_Enter() {
 
 void ScreenWeather_ChangeRange(int dir) {
   s_rangeIdx = (s_rangeIdx + dir + RANGE_COUNT) % RANGE_COUNT;
+  Settings_SetMeteoRange(s_rangeIdx);   // remember across restarts (debounced)
   s_needRebuild = true;   // re-crop the frames on the next tick
 }
 

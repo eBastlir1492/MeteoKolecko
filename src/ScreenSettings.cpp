@@ -12,6 +12,7 @@
 #include "WiFiPortal.h"
 #include "UI.h"
 #include "Display_ST7701.h"
+#include "Version.h"
 
 #include <WiFi.h>
 
@@ -20,26 +21,30 @@
 #define SL_Y        138    // slider
 #define ROW_WIFI    180
 #define ROW_LOC     240
-#define ROW_PORTAL  345    // button (pushed below the location)
 
 // Brightness slider.
 #define SL_X  90
 #define SL_W  300
 #define SL_H  24
 
-// Portal button.
-#define BTN_X  90
-#define BTN_Y  (ROW_PORTAL - 26)
-#define BTN_W  300
-#define BTN_H  52
+// Two stacked buttons (WiFi/location + firmware update).
+#define BTN_X   90
+#define BTN_W   300
+#define BTN_H   46
+#define BTN1_Y  296        // WiFi / location (portal)
+#define BTN2_Y  350        // firmware update (OTA)
 
 static bool s_wantsPortal = false;
+static bool s_wantsOTA    = false;
 
 void ScreenSettings_Enter() {}
 bool ScreenSettings_Tick() { return false; }
 
 bool ScreenSettings_WantsPortal() { return s_wantsPortal; }
 void ScreenSettings_ClearPortal() { s_wantsPortal = false; }
+
+bool ScreenSettings_WantsOTA() { return s_wantsOTA; }
+void ScreenSettings_ClearOTA() { s_wantsOTA = false; }
 
 bool ScreenSettings_HandleTap(int x, int y) {
   // Brightness slider (generous touch zone around the track).
@@ -51,9 +56,14 @@ bool ScreenSettings_HandleTap(int x, int y) {
     Set_Backlight(pct);
     return true;
   }
-  // "Change WiFi / location" button - exact button zone.
-  if (x >= BTN_X && x <= BTN_X + BTN_W && y >= BTN_Y && y <= BTN_Y + BTN_H) {
+  // "WiFi / location" button.
+  if (x >= BTN_X && x <= BTN_X + BTN_W && y >= BTN1_Y && y <= BTN1_Y + BTN_H) {
     s_wantsPortal = true;
+    return true;
+  }
+  // "Firmware update (OTA)" button.
+  if (x >= BTN_X && x <= BTN_X + BTN_W && y >= BTN2_Y && y <= BTN2_Y + BTN_H) {
+    s_wantsOTA = true;
     return true;
   }
   return false;
@@ -63,6 +73,10 @@ void ScreenSettings_Draw() {
   gfx->fillScreen(C_BLACK);
 
   UI_TextCentered("Settings", 40, C_WHITE, 3);
+  // Firmware version right under the title, so the user always knows what is
+  // flashed (useful before/after an OTA update).
+  { char v[24]; snprintf(v, sizeof(v), "firmware v%s", FW_VERSION);
+    UI_TextCentered(v, 74, C_GRAY, 1); }
 
   // --- Brightness (slider) ---
   gfx->setTextSize(2); gfx->setTextColor(C_GRAY);
@@ -103,10 +117,14 @@ void ScreenSettings_Draw() {
   gfx->setTextColor(C_WHITE);
   gfx->setCursor(SL_X, ROW_LOC + 24); gfx->print(loc);
 
-  // --- Button: change WiFi / location (portal) ---
-  gfx->fillRoundRect(BTN_X, BTN_Y, BTN_W, BTN_H, 12, C_CYAN);
-  UI_TextCentered("Change WiFi / location", BTN_Y + BTN_H / 2 - 8, C_BLACK, 2);
+  // --- Button 1: change WiFi / location (portal) ---
+  gfx->fillRoundRect(BTN_X, BTN1_Y, BTN_W, BTN_H, 12, C_CYAN);
+  UI_TextCentered("WiFi / location", BTN1_Y + BTN_H / 2 - 8, C_BLACK, 2);
 
-  // Signature at the bottom - same font as the "WiFi" label (2), same green as the SSID.
-  UI_TextCentered("chiptron.cz", 405, C_GREEN, 2);
+  // --- Button 2: firmware update over WiFi (OTA) ---
+  gfx->fillRoundRect(BTN_X, BTN2_Y, BTN_W, BTN_H, 12, C_ORANGE);
+  UI_TextCentered("Firmware update", BTN2_Y + BTN_H / 2 - 8, C_BLACK, 2);
+
+  // Signature at the bottom.
+  UI_TextCentered("chiptron.cz", 410, C_GREEN, 2);
 }

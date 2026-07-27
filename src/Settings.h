@@ -9,10 +9,7 @@
 // =============================================================================
 #pragma once
 #include <Arduino.h>
-
-// Default location (Prague) - overwritten on first boot by geolocation, or manually.
-#define DEFAULT_LAT 50.0755
-#define DEFAULT_LON 14.4378
+#include "Config.h"   // DEFAULT_LAT / DEFAULT_LON
 
 void   Settings_Begin();
 
@@ -27,5 +24,18 @@ void    Settings_SetBacklight(uint8_t pct);
 // Units in the aircraft detail: false = aviation (ft/kt), true = metric (m/kmh).
 bool    Settings_MetricUnits();
 void    Settings_SetMetricUnits(bool metric);
+
+// UI state persisted across restarts: range index per screen + active screen.
+// Written debounced (see Settings_Tick) so swiping does not hammer the flash.
+uint8_t Settings_PlaneRange();
+void    Settings_SetPlaneRange(uint8_t idx);
+uint8_t Settings_MeteoRange();
+void    Settings_SetMeteoRange(uint8_t idx);
+uint8_t Settings_Screen();
+void    Settings_SetScreen(uint8_t idx);
+
+// Call once per loop(); flushes pending UI-state changes to NVS after a short
+// idle delay (so a swipe does not trigger a flash write every time).
+void    Settings_Tick();
 
 void   Settings_ClearAll();

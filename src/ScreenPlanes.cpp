@@ -10,6 +10,7 @@
 #include "ScreenPlanes.h"
 #include "ADSB.h"
 #include "Settings.h"
+#include "Config.h"
 #include "EuBorder.h"
 #include "UI.h"
 #include "Display_ST7701.h"
@@ -25,7 +26,7 @@
 #define R_RADIUS 230
 
 // Ranges (radius in km).
-static const float RANGES_KM[] = {10.0f, 25.0f, 50.0f, 100.0f};
+static const float RANGES_KM[] = PLANE_RANGES_KM;
 static const int   RANGE_COUNT = sizeof(RANGES_KM) / sizeof(RANGES_KM[0]);
 static int s_rangeIdx = 1;   // 25 km by default
 
@@ -36,9 +37,9 @@ static float currentRange() { return RANGES_KM[s_rangeIdx]; }
 // free adsb.fi API.
 static unsigned long basePeriodMs() {
   float r = currentRange();
-  if (r <= 25.0f) return 5000;    // 10 / 25 km
-  if (r <= 50.0f) return 10000;   // 50 km
-  return 15000;                   // 100 km
+  if (r <= ADSB_NEAR_KM) return ADSB_PERIOD_NEAR_MS;
+  if (r <= ADSB_MID_KM)  return ADSB_PERIOD_MID_MS;
+  return ADSB_PERIOD_FAR_MS;
 }
 
 static unsigned long s_nextFetch = 0;
@@ -151,6 +152,8 @@ static void drawPlane(int x, int y, float trackDeg, bool hasTrack, uint16_t col)
 }
 
 void ScreenPlanes_Enter() {
+  s_rangeIdx = Settings_PlaneRange();
+  if (s_rangeIdx >= RANGE_COUNT) s_rangeIdx = 1;   // guard against a stale value
   s_nextFetch = 0;
 }
 
@@ -210,6 +213,7 @@ bool ScreenPlanes_HandleTap(int x, int y) {
 void ScreenPlanes_ChangeRange(int dir) {
   if (ScreenPlanes_DetailOpen()) return;
   s_rangeIdx = (s_rangeIdx + dir + RANGE_COUNT) % RANGE_COUNT;
+  Settings_SetPlaneRange(s_rangeIdx);   // remember across restarts (debounced)
   Serial.printf("ADSB range: %.0f km\n", currentRange());
   s_nextFetch = 0;
 }

@@ -9,9 +9,7 @@
 // =============================================================================
 #pragma once
 #include <Arduino.h>
-
-#define AP_SSID     "MeteoPlaneRadar"
-#define AP_PASSWORD ""            // "" = open network
+#include "Config.h"   // AP_SSID / AP_PASSWORD
 #define PORTAL_IP   "192.168.4.1"
 
 // Try the stored WiFi; on failure start the AP portal (draws instructions + QR).

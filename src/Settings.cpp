@@ -19,6 +19,13 @@ static bool    s_hasLoc = false;
 static uint8_t s_bl = 80;
 static bool    s_metric = false;   // aviation units by default
 
+// UI state (range per screen + active screen) with a debounced NVS write.
+static uint8_t s_rngP = 1;              // plane range index (25 km default)
+static uint8_t s_rngM = 1;              // meteo range index (50 km default)
+static uint8_t s_scr  = 0;              // active screen (0 = planes)
+static bool          s_uiDirty   = false;
+static unsigned long s_uiDirtyAt = 0;
+
 void Settings_Begin() {
   if (prefs.begin(NS, true)) {
     s_lat    = prefs.getDouble("lat", DEFAULT_LAT);
@@ -26,6 +33,9 @@ void Settings_Begin() {
     s_hasLoc = prefs.getBool("hasLoc", false);
     s_bl     = prefs.getUChar("bl", 80);
     s_metric = prefs.getBool("metric", false);
+    s_rngP   = prefs.getUChar("rngP", 1);
+    s_rngM   = prefs.getUChar("rngM", 1);
+    s_scr    = prefs.getUChar("scr", 0);
     prefs.end();
   }
 }
@@ -58,8 +68,36 @@ void Settings_SetMetricUnits(bool metric) {
   if (prefs.begin(NS, false)) { prefs.putBool("metric", metric); prefs.end(); }
 }
 
+uint8_t Settings_PlaneRange() { return s_rngP; }
+void    Settings_SetPlaneRange(uint8_t idx) {
+  if (idx != s_rngP) { s_rngP = idx; s_uiDirty = true; s_uiDirtyAt = millis(); }
+}
+uint8_t Settings_MeteoRange() { return s_rngM; }
+void    Settings_SetMeteoRange(uint8_t idx) {
+  if (idx != s_rngM) { s_rngM = idx; s_uiDirty = true; s_uiDirtyAt = millis(); }
+}
+uint8_t Settings_Screen() { return s_scr; }
+void    Settings_SetScreen(uint8_t idx) {
+  if (idx != s_scr) { s_scr = idx; s_uiDirty = true; s_uiDirtyAt = millis(); }
+}
+
+// Debounced flush: write only after the UI has been idle for a moment, so a
+// burst of swipes results in a single NVS write instead of one per step.
+void Settings_Tick() {
+  if (!s_uiDirty) return;
+  if (millis() - s_uiDirtyAt < 2000) return;
+  if (prefs.begin(NS, false)) {
+    prefs.putUChar("rngP", s_rngP);
+    prefs.putUChar("rngM", s_rngM);
+    prefs.putUChar("scr",  s_scr);
+    prefs.end();
+  }
+  s_uiDirty = false;
+}
+
 void Settings_ClearAll() {
   if (prefs.begin(NS, false)) { prefs.clear(); prefs.end(); }
   s_lat = DEFAULT_LAT; s_lon = DEFAULT_LON; s_hasLoc = false; s_bl = 80;
   s_metric = false;
+  s_rngP = 1; s_rngM = 1; s_scr = 0; s_uiDirty = false;
 }

@@ -9,9 +9,9 @@
 // =============================================================================
 #pragma once
 #include <Arduino.h>
+#include "Config.h"   // ADSB_MAX
 
 #define ADSB_API_BASE "https://opendata.adsb.fi/api/v3/lat/"
-#define ADSB_MAX 100           // cap on aircraft to draw
 
 struct Aircraft {
   float lat = 0;

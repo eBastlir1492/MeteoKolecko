@@ -18,3 +18,7 @@ bool ScreenSettings_HandleTap(int x, int y);
 // Tells main that the user wants to launch the WiFi portal.
 bool ScreenSettings_WantsPortal();
 void ScreenSettings_ClearPortal();
+
+// Tells main that the user wants to start OTA (firmware update over WiFi).
+bool ScreenSettings_WantsOTA();
+void ScreenSettings_ClearOTA();

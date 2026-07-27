@@ -9,8 +9,7 @@
 // =============================================================================
 #pragma once
 #include <Arduino.h>
-
-#define WDT_TIMEOUT_S 20   // reboot after 20 s of being stuck
+#include "Config.h"   // WDT_TIMEOUT_S
 
 void Watchdog_Begin();
 void Watchdog_Feed();
