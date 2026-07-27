@@ -22,6 +22,9 @@ MeteoPlaneRadar je samostatné WiFi zařízení s kulatým 480×480 displejem, k
 Poloha, obrys i města se promítají stejnou projekcí jako data, takže mapa vždy
 sedí bez ohledu na zvolený rozsah.
 
+**Programovat nemusíte.** Hotový firmware nahrajete z prohlížeče — viz
+[Jak nahrát firmware](#jak-nahrát-firmware).
+
 ## Hardware
 
 | Součást | Popis |
@@ -32,7 +35,7 @@ sedí bez ohledu na zvolený rozsah.
 | Dotyk | kapacitní **CST820** (I²C) |
 | Expandér | **TCA9554** (reset / CS / napájení displeje) |
 
-Konfigurace: **PSRAM = OPI**, **Flash = 16 MB**, **Partition scheme = 16 MB FLASH (3 MB APP / 9.9 MB FATFS)**. Napájení stačí z USB‑C.
+Stačí tahle jedna deska a USB‑C kabel. Nic se nepájí ani nedrátuje.
 
 ## Co to umí
 
@@ -41,16 +44,21 @@ Konfigurace: **PSRAM = OPI**, **Flash = 16 MB**, **Partition scheme = 16 MB FLAS
   callsign u letadla, kroužek u vybraného letu a plovoucí detailní panel.
   Odolné vůči **nekompletnímu / uříznutému JSON** — při chybě stahování zůstanou
   poslední platná data místo zablikání na prázdno.
-  Časový internal stahování JSON na základě rozsahu - 5s (10/25km), 10s (50km) a 15s (100km). Při chybě stažení
-  dat se internal zdvojnásobí.
+  Interval stahování se řídí rozsahem: 5 s (10/25 km), 10 s (50 km), 15 s
+  (100 km). Při chybě se interval zdvojnásobí.
 - **Meteoradar ČHMÚ** — srážkový kompozit s **animací** (až 6 snímků, krok
   5 min, ~2 sn./s, pauza mezi cykly), **indikací času** ke každému snímku
   („nyní / −X min“ + HH:MM), legendou dBZ / mm/h, obrysem ČR a městy. Obraz je
   maskovaný do kruhu displeje.
-- **Nastavení** — jas, WiFi (captive portál s QR kódem), poloha.
+- **Nastavení** — jas, WiFi (captive portál s QR kódem), poloha, zobrazení
+  aktuální verze firmwaru a tlačítko pro bezdrátovou aktualizaci.
+- **Aktualizace přes WiFi (OTA)** — nový firmware nahrajete z prohlížeče bez
+  USB kabelu.
+- **Pamatuje si stav** — poslední zvolený rozsah (zvlášť pro letadla a
+  meteoradar) i naposledy zobrazenou obrazovku; po restartu naskočí tam, kde
+  jste skončili.
 - **Bez blikání pixelů** — celý snímek se kreslí do jednoho bufferu v PSRAM a
-  na panel se posílá jedním přenosem; RGB časování a konfigurace framebufferu
-  jsou nastavené tak, aby se sběrnice PSRAM nepřetěžovala (ověřená kombinace).
+  na panel se posílá jedním přenosem synchronizovaným s VSYNC.
 - **Provoz 24/7** — hardwarový watchdog.
 
 ## Ovládání
@@ -59,37 +67,131 @@ Ovládá se gesty na dotykovém displeji:
 
 | Gesto | Akce |
 |---|---|
-| **Swipe** vlevo/vpravo | změna rozsahu (na letadlech i meteoradaru) |
-| **Krátký stisk** | výběr letadla / detail (zavření klepnutím mimo) |
-| **Dlouhý stisk vlevo** | přepnutí obrazovky na předchozázející obrazovku (Letadla → Meteoradar → Nastavení) |
-| **Dlouhý stisk vpravo** | přepnutí obrazovky na nadcházející obrazovku (Letadla → Meteoradar → Nastavení) |
+| **Přejetí prstem** vlevo/vpravo | změna rozsahu (na letadlech i meteoradaru) |
+| **Krátké klepnutí** | výběr letadla / detail (zavření klepnutím mimo) |
+| **Dlouhý stisk v levé polovině** | předchozí obrazovka |
+| **Dlouhý stisk v pravé polovině** | následující obrazovka |
 | **Držení BOOT při startu (~3 s)** | tovární reset (WiFi + nastavení) |
 
-Při prvním zapnutí (nebo po resetu) vytvoří zařízení WiFi síť
-**`MeteoPlaneRadar`** — připojte se (v portálu je i QR kód) a zadejte údaje své
-sítě.
+Obrazovky jsou tři: **Letadla → Meteoradar → Nastavení** (dokola).
 
-## Závislosti
+Při prvním zapnutí (nebo po resetu) vytvoří zařízení WiFi síť
+**`MeteoPlaneRadar`** — připojte se (na displeji je i QR kód) a zadejte údaje
+své domácí sítě.
+
+---
+
+# Jak nahrát firmware
+
+Jsou dvě možnosti. **Když nevíte, kterou zvolit, použijte Full programming** —
+funguje vždy.
+
+| | Full programming | OTA (přes WiFi) |
+|---|---|---|
+| Čím | prohlížeč + USB‑C kabel | jen prohlížeč, bezdrátově |
+| Soubor | `MeteoPlaneRadar_v0.4.ino.merged.bin` | `MeteoPlaneRadar_v0.4.ino.bin` |
+| Kdy | první nahrání, přechod z verze nižší než 0.4, záchrana | běžná aktualizace z verze 0.4 a vyšší |
+
+> ### ⚠️ Máte verzi starší než 0.4 (nebo nevíte jakou)?
+> **Musíte použít Full programming přes USB.** Verze do 0.3 mají jinak
+> rozdělenou paměť a bezdrátová aktualizace nemá kam zapsat — OTA by selhala.
+> Stačí to udělat jednou; od verze 0.4 už můžete aktualizovat bezdrátově.
+>
+> Jakou verzi máte, zjistíte v **Nastavení** — verze je vypsaná pod nadpisem.
+> Když tam žádná není, máte verzi starší než 0.4.
+
+## Full programming (USB kabel)
+
+Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně nové desce.
+
+1. Stáhněte si z [**Releases**](../../releases) soubor
+   **`MeteoPlaneRadar_v0.4.ino.merged.bin`** (ten s `merged`).
+2. Připojte desku USB‑C kabelem k počítači.
+3. Otevřete **[esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz)**
+   v prohlížeči **Chrome** nebo **Edge** (Firefox a Safari to neumí).
+4. Vyberte **ESP32‑S3**, vyberte stažený soubor a spusťte nahrávání.
+5. Po dokončení dejte reset. Zařízení vytvoří WiFi síť `MeteoPlaneRadar` —
+   připojte se a zadejte svou domácí WiFi.
+
+## OTA – aktualizace přes WiFi (bez kabelu)
+
+Od verze 0.4 můžete nový firmware nahrát bezdrátově, přímo ze zařízení.
+
+1. Stáhněte si z [**Releases**](../../releases) soubor
+   **`MeteoPlaneRadar_v0.4.ino.bin`** — pozor, **ten bez `merged`**.
+2. V zařízení jděte do **Nastavení** a klepněte na **Firmware update**.
+3. Zařízení vytvoří WiFi síť **`MeteoPlaneRadar`** (bez hesla) a ukáže QR kód.
+   Připojte se k ní telefonem nebo notebookem.
+4. V prohlížeči otevřete **`http://192.168.4.1/update`**.
+5. Vyberte stažený soubor a nahrajte ho. Průběh vidíte v prohlížeči.
+6. Zařízení se samo restartuje do nové verze. V Nastavení si ověřte, že se
+   verze změnila.
+
+**Co je během aktualizace normální:**
+
+- Displej ukáže „Probiha aktualizace…" a **pak zhasne**. Tak to má být — při
+  zápisu do paměti nelze udržet stabilní obraz, proto se podsvícení vypne.
+  Po dokončení se samo rozsvítí.
+- Telefon hlásí, že síť nemá internet. To nevadí, soubor už máte stažený.
+  Případně na chvíli vypněte mobilní data, aby se telefon neodpojoval.
+
+**Kdyby se aktualizace nepovedla:** nic se neděje. Zařízení se vrátí k původní
+verzi a vždycky ho můžete zachránit přes Full programming.
+
+Nechcete nakonec nahrávat? Klepnutím na displej režim aktualizace opustíte. Po
+5 minutách nečinnosti skončí sám.
+
+---
+
+## Pro vývojáře: překlad ze zdrojáků
+
+Tahle část je jen pro ty, kdo si chtějí projekt upravit. Pokud jste nahráli
+hotový firmware, přeskočte ji.
+
+### Závislosti
 
 Arduino IDE, **ESP32 core 3.x**, a knihovny z Library Manageru:
 
 - **GFX Library for Arduino** (moononournation) — kreslení
 - **PNGdec** (bitbank2) — dekódování snímků meteoradaru
-- **ArduinoJson** (bblanchon) — parsování dat ADS‑B
+- **ArduinoJson** (bblanchon, v7) — parsování dat ADS‑B
 - **WiFiManager** (tzapu) — konfigurační WiFi portál
+- **ElegantOTA** (ayushsharma82) — aktualizace přes WiFi
 - **QRCode** (ricmoo) — QR kód v portálu *(přibaleno v projektu)*
 
-`Preferences`, `Wire`, `HTTPClient` a `esp_lcd` jsou součástí ESP32 core.
+`Preferences`, `Wire`, `HTTPClient`, `WebServer` a `esp_lcd` jsou součástí
+ESP32 core.
 
-## Sestavení
+> ElegantOTA se používá ve **výchozím (synchronním) režimu** — nic se v knihovně
+> needituje a `ESPAsyncWebServer` ani `AsyncTCP` nejsou potřeba.
 
-1. V Arduino IDE nainstalujte ESP32 core (3.x) a výše uvedené knihovny.
-2. Otevřete `src/MeteoPlaneRadar.ino` (název složky a `.ino` se musí shodovat).
-3. Deska: **ESP32‑S3**, PSRAM **OPI**, Flash **16 MB**, partition s dostatkem
-   místa pro aplikaci (například 3MB App/ 9.9 MB FATFS).
-4. Nahrajte a připojte se k WiFi síti `MeteoPlaneRadar` pro prvotní nastavení.
+### Nastavení Arduino IDE
 
-Nebo stáhněte přibalený BIN soubor a nahrajte ho do desky na https://esp32flasher.chiptron.cz
+| Položka | Hodnota |
+|---|---|
+| Board | ESP32S3 Dev Module |
+| PSRAM | **OPI PSRAM** (bez toho zůstane displej černý) |
+| Flash Size | 16MB (128Mb) |
+| Flash Mode | QIO 80MHz |
+| **Partition Scheme** | **Custom** (použije se přiložený `src/partitions.csv`) |
+| USB CDC On Boot | Enabled |
+
+Partition **Custom** je pro OTA nutná — přiložená tabulka má dvě aplikační
+oblasti (2× 6 MB), aby bylo kam nahrát novou verzi. Po překladu zkontrolujte
+v logu, že se hlásí `of 6291456 bytes`.
+
+Nastavení jako časová zóna, výchozí poloha, rozsahy nebo limity najdete
+pohromadě v **`src/Config.h`**. Verze firmwaru je v **`src/Version.h`**.
+
+### Vytvoření souborů pro Releases
+
+- **`MeteoPlaneRadar.ino.bin`** (pro OTA) — *Sketch → Export Compiled Binary*.
+- **`MeteoPlaneRadar.ino.merged.bin`** (pro web flasher) — sloučený obraz celé
+  paměti; musí být vygenerovaný se **stejnou partition tabulkou**.
+
+Při vydání soubory pojmenujte s verzí, např. `MeteoPlaneRadar_v0.4.ino.bin`.
+
+---
 
 ## Zdroje dat a API
 
@@ -102,27 +204,33 @@ Jen pro osobní, nekomerční použití — respektujte prosím podmínky poskyt
   Kompozit: `https://opendata.chmi.cz/meteorology/weather/radar/composite/maxz/png/`
 - **Poloha podle IP:** ip‑api.com — <http://ip-api.com>
 
+> Meteoradar ČHMÚ pokrývá **Českou republiku a blízké okolí**. Když máte polohu
+> nastavenou jinam (třeba do zahraničí), zůstane meteo obrazovka prázdná — data
+> pro tu oblast neexistují. Radar letadel funguje kdekoliv.
+
 ## Licence
 
-MIT (viz `src/LICENSE`). Kód smíte volně používat, upravovat i komerčně
-nasazovat - musíte si ale zařídit komerční 
-využívání používaných API! Nad rámec licence budeme rádi, když na obrazovce nastavení ponecháte
-řádek **chiptron.cz** ve stejné velikosti a barvě jako v originále — je to prosba, ne podmínka.
+MIT (viz `LICENSE`). Kód smíte volně používat, upravovat i komerčně nasazovat —
+musíte si ale zařídit komerční využívání používaných API! Nad rámec licence
+budeme rádi, když na obrazovce nastavení ponecháte řádek **chiptron.cz** ve
+stejné velikosti a barvě jako v originále — je to prosba, ne podmínka.
 
-## Inspirace 
+## Inspirace
+
 Tento projekt nevznikl z ničeho. Navazuje na tři existující:
 
 [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar) - původní radar letadel a zdroj adsb.fi
 
 [Selbyl/ESP32-S30Touch-LCD-2.1_Plane-Radar](https://github.com/Selbyl/ESP32-S30Touch-LCD-2.1_Plane-Radar) - port na Waveshare 480×480
 
-[https://github.com/mylms/ESP-MeteoRadar/tree/main ](https://github.com/mylms/ESP-MeteoRadar/tree/main ) - ČHMÚ srážkový meteoradar
+[mylms/ESP-MeteoRadar](https://github.com/mylms/ESP-MeteoRadar/tree/main) - ČHMÚ srážkový meteoradar
 
 ## Vývoj
 
-Vyvinul **[chiptron.cz](https://chiptron.cz)**. Článek o projektu najdete na [https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/](https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/)
+Vyvinul **[chiptron.cz](https://chiptron.cz)**. Článek o projektu najdete na
+[https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/](https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/)
 
 ## Verze
-v0.2 - init
 
-v0.3 - Robustní stahování ADS-B: celé HTTP tělo se teď načte do znovupoužitelného PSRAM bufferu a parsuje se až kompletní (s kontrolou utnutí proti Content-Length a jedním retry), místo parsování přímo z TLS streamu — tím mizí občasné chyby stahování „IncompleteInput". Parsování nově používá ArduinoJson filtr (nechá jen pole, která používáme), pozemní letadla se zahazují už při parsu, perioda stahování se odvíjí od rozsahu (5/10/15 s) a po neúspěšném stažení se zdvojnásobí, aby se šetřilo volné API adsb.fi, a limit letadel (ADSB_MAX) se zvedl ze 40 na 100. Změna ovládání: dlouhý stisk teď přepíná obrazovky směrově (levá půlka = předchozí, pravá = následující, s přetočením dokola) místo slepého cyklení.
+Aktuální verze je v `src/Version.h` a zobrazuje se na obrazovce Nastavení.
+Kompletní historie změn je v **[CHANGELOG.md](CHANGELOG.md)**.
