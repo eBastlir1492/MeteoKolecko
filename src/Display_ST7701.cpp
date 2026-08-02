@@ -9,6 +9,7 @@
 // =============================================================================
 #include "Display_ST7701.h"
 #include "TCA9554.h"
+#include "Config.h"
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -156,13 +157,20 @@ void ST7701_Init() {
 
   ST7701_SendInit();
 
-  // RGB panel. Framebuffer in PSRAM, single FB + bounce buffers.
+  // RGB panel. TWO framebuffers in PSRAM *and* bounce buffers - both at once.
   //
-  // CRITICAL anti-flicker combo: num_fbs=1 AND bounce buffers. num_fbs=2
-  // (double_fb) and bounce_buffer_size are MUTUALLY EXCLUSIVE driver modes;
-  // the original code enabled BOTH, which causes tearing / random-pixel
-  // flicker on this panel. Bounce buffers let the RGB DMA ride out short
-  // PSRAM-bus stalls caused by the canvas flush and network buffers.
+  // They are NOT mutually exclusive (an earlier comment here claimed they were;
+  // the IDF source shows the bounce refill simply follows cur_fb_index). Each
+  // solves a different problem and we need both:
+  //
+  //   num_fbs = 2   -> the UI is drawn into the framebuffer that is not on
+  //                    screen, so a redraw can never tear the visible image.
+  //   bounce bufs   -> the DMA is fed from small buffers in internal SRAM
+  //                    instead of reading PSRAM directly, so it survives a
+  //                    busy PSRAM bus. Without them the whole picture flickers.
+  //
+  // Constraint from the driver: fb_size must be divisible by 2 * bounce size.
+  // 460800 / (2 * 9600) = 24, so 10 lines is a valid choice.
   esp_lcd_rgb_panel_config_t rgb = {};
   rgb.clk_src = LCD_CLK_SRC_DEFAULT;
   rgb.timings.pclk_hz = RGB_FREQ_HZ;
@@ -177,8 +185,8 @@ void ST7701_Init() {
   rgb.timings.flags.pclk_active_neg = false;
   rgb.data_width = 16;
   rgb.bits_per_pixel = 16;
-  rgb.num_fbs = 1;                               // single framebuffer...
-  rgb.bounce_buffer_size_px = 10 * LCD_WIDTH;    // ...paired with bounce buffers
+  rgb.num_fbs = 2;                               // double buffering (no tearing)
+  rgb.bounce_buffer_size_px = 10 * LCD_WIDTH;    // steady DMA feed (no flicker)
   rgb.psram_trans_align = 64;
   rgb.hsync_gpio_num = RGB_HSYNC;
   rgb.vsync_gpio_num = RGB_VSYNC;
@@ -194,8 +202,9 @@ void ST7701_Init() {
   rgb.data_gpio_nums[12] = RGB_D12;  rgb.data_gpio_nums[13] = RGB_D13;
   rgb.data_gpio_nums[14] = RGB_D14;  rgb.data_gpio_nums[15] = RGB_D15;
   rgb.flags.fb_in_psram = true;
-  // NOTE: double_fb intentionally NOT set (it forces num_fbs=2 and conflicts
-  // with the bounce buffers above - that combination was the flicker source).
+  // NOTE: double_fb is just an alias for num_fbs=2, which is set above.
+  // NOTE: with bounce buffers the driver switches framebuffers via bb_fb_index
+  // at the start of a frame, so handing over a framebuffer still works.
 
   esp_lcd_new_rgb_panel(&rgb, &panel_handle);
   esp_lcd_panel_reset(panel_handle);
@@ -209,27 +218,50 @@ void ST7701_Init() {
   esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL);
 }
 
+uint16_t* LCD_FrameBuffer(int idx) {
+  if (!panel_handle || idx < 0 || idx > 1) return nullptr;
+  void* fb0 = nullptr; void* fb1 = nullptr;
+  if (esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &fb0, &fb1) != ESP_OK) return nullptr;
+  return (uint16_t*)(idx == 0 ? fb0 : fb1);
+}
+
 void LCD_DrawBitmap(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t* color) {
   // esp_lcd treats x_end/y_end as exclusive, hence the +1.
   esp_lcd_panel_draw_bitmap(panel_handle, x1, y1, x2 + 1, y2 + 1, color);
 }
 
 void LCD_Flush(const uint16_t* fb) {
-  // One big transfer: whole canvas -> panel framebuffer (single bulk read on the
-  // PSRAM bus instead of 230k tiny pixel writes).
-  //
-  // Wait for the next VSYNC first. With num_fbs=1 the copy writes into the very
-  // framebuffer the RGB DMA is scanning out. If the copy STARTS while the panel
-  // is already scanning the middle of the screen, the write pointer overtakes
-  // the read pointer around y=240 -> a flickering band there, most visible on
-  // high-contrast content (an aircraft or a rain cloud on the left/centre).
-  // Starting the copy right at VSYNC keeps the write ahead of the scan-out for
-  // the whole frame, so they never cross and the band disappears.
+  // With two framebuffers the driver recognises one of its own buffers, skips
+  // the copy entirely and only repoints the DMA (verified in the IDF source:
+  // draw_bitmap sets do_copy = false when the pointer matches a framebuffer).
+#if FLUSH_DEBUG
+  uint32_t t0 = micros();
+#endif
+  esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_WIDTH, LCD_HEIGHT, (void*)fb);
+
+  // The DMA only picks up the new buffer at the end of the frame it is drawing
+  // right now. Wait for that boundary before returning, otherwise the caller
+  // would start drawing into a buffer that is still on screen - which is the
+  // very tearing we are getting rid of.
   if (s_vsyncSem) {
     xSemaphoreTake(s_vsyncSem, 0);                    // drop any stale event
-    xSemaphoreTake(s_vsyncSem, pdMS_TO_TICKS(100));   // block until the next VSYNC
+    xSemaphoreTake(s_vsyncSem, pdMS_TO_TICKS(100));   // wait for the swap
   }
-  esp_lcd_panel_draw_bitmap(panel_handle, 0, 0, LCD_WIDTH, LCD_HEIGHT, (void*)fb);
+#if FLUSH_DEBUG
+  uint32_t dt = micros() - t0;
+  static uint32_t mn = 0xFFFFFFFF, mx = 0, last = 0, cnt = 0, tPrev = 0;
+  if (dt < mn) mn = dt;
+  if (dt > mx) mx = dt;
+  last = dt; cnt++;
+  uint32_t now = millis();
+  if (now - tPrev >= 1000) {
+    tPrev = now;
+    Serial.printf("FLUSH: min=%lu us  posl=%lu us  max=%lu us  (%lu/s, snimek ~34200 us)\n",
+                  (unsigned long)mn, (unsigned long)last, (unsigned long)mx,
+                  (unsigned long)cnt);
+    mn = 0xFFFFFFFF; mx = 0; cnt = 0;
+  }
+#endif
 }
 
 // --- Backlight ---

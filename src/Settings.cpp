@@ -23,6 +23,7 @@ static bool    s_metric = false;   // aviation units by default
 static uint8_t s_rngP = 1;              // plane range index (25 km default)
 static uint8_t s_rngM = 1;              // meteo range index (50 km default)
 static uint8_t s_scr  = 0;              // active screen (0 = planes)
+static uint16_t s_top = 0;              // bearing shown at the top (0 = north up)
 static bool          s_uiDirty   = false;
 static unsigned long s_uiDirtyAt = 0;
 
@@ -36,6 +37,7 @@ void Settings_Begin() {
     s_rngP   = prefs.getUChar("rngP", 1);
     s_rngM   = prefs.getUChar("rngM", 1);
     s_scr    = prefs.getUChar("scr", 0);
+    s_top    = prefs.getUShort("topb", 0);   // new key: old "rot" meant something else
     prefs.end();
   }
 }
@@ -76,6 +78,12 @@ uint8_t Settings_MeteoRange() { return s_rngM; }
 void    Settings_SetMeteoRange(uint8_t idx) {
   if (idx != s_rngM) { s_rngM = idx; s_uiDirty = true; s_uiDirtyAt = millis(); }
 }
+uint16_t Settings_TopBearing() { return s_top; }
+void     Settings_SetTopBearing(uint16_t deg) {
+  deg %= 360;
+  if (deg != s_top) { s_top = deg; s_uiDirty = true; s_uiDirtyAt = millis(); }
+}
+
 uint8_t Settings_Screen() { return s_scr; }
 void    Settings_SetScreen(uint8_t idx) {
   if (idx != s_scr) { s_scr = idx; s_uiDirty = true; s_uiDirtyAt = millis(); }
@@ -90,6 +98,7 @@ void Settings_Tick() {
     prefs.putUChar("rngP", s_rngP);
     prefs.putUChar("rngM", s_rngM);
     prefs.putUChar("scr",  s_scr);
+    prefs.putUShort("topb", s_top);
     prefs.end();
   }
   s_uiDirty = false;
@@ -99,5 +108,5 @@ void Settings_ClearAll() {
   if (prefs.begin(NS, false)) { prefs.clear(); prefs.end(); }
   s_lat = DEFAULT_LAT; s_lon = DEFAULT_LON; s_hasLoc = false; s_bl = 80;
   s_metric = false;
-  s_rngP = 1; s_rngM = 1; s_scr = 0; s_uiDirty = false;
+  s_rngP = 1; s_rngM = 1; s_scr = 0; s_top = 0; s_uiDirty = false;
 }

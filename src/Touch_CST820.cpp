@@ -9,6 +9,8 @@
 // =============================================================================
 #include "Touch_CST820.h"
 #include "TCA9554.h"
+#include "Display_ST7701.h"   // LCD_WIDTH / LCD_HEIGHT
+#include "Config.h"           // TOUCH_DEBUG
 #include <Wire.h>
 
 static bool readRegs(uint8_t reg, uint8_t* buf, size_t len) {
@@ -40,14 +42,59 @@ bool Touch_Init() {
   return false;
 }
 
+#if TOUCH_DEBUG
+static uint32_t s_badReads = 0;      // rejected samples since the last report
+static uint32_t s_badReported = 0;   // millis() of the last report
+#endif
+
+// Report a rejected sample at most once a second, so a noisy bus cannot flood
+// the console (and slow everything down in the process).
+static void noteBadSample(const char* why) {
+#if TOUCH_DEBUG
+  s_badReads++;
+  uint32_t now = millis();
+  if (now - s_badReported >= 1000) {
+    s_badReported = now;
+    Serial.printf("TOUCH: zahozeno %lu vadnych cteni (%s)\n",
+                  (unsigned long)s_badReads, why);
+    s_badReads = 0;
+  }
+#else
+  (void)why;
+#endif
+}
+
 void Touch_Read(TouchData* out) {
   out->points = 0;
   uint8_t buf[6] = {};
   // Register 0x02 = number of points, followed by the coordinates.
   if (!readRegs(0x02, buf, 6)) return;
+
+  // --- Sanity checks on the data itself -------------------------------------
+  // The I2C transfer can succeed (the chip ACKs) and still hand back garbage,
+  // typically all 0xFF. Decoded naively that is "15 points at (4095, 4095)",
+  // which the UI then treats as a real tap somewhere off the map - and that is
+  // exactly what kept closing the aircraft detail panel on its own.
+  if (buf[0] == 0xFF && buf[1] == 0xFF && buf[2] == 0xFF) {
+    noteBadSample("same 0xFF");
+    return;
+  }
+
   uint8_t points = buf[0] & 0x0F;
-  if (points == 0) return;
+  if (points == 0) return;              // no finger - the normal case
+  if (points > 1) {                     // CST820 is a single-touch controller
+    noteBadSample("nesmyslny pocet bodu");
+    return;
+  }
+
+  uint16_t x = ((buf[1] & 0x0F) << 8) | buf[2];
+  uint16_t y = ((buf[3] & 0x0F) << 8) | buf[4];
+  if (x >= LCD_WIDTH || y >= LCD_HEIGHT) {   // outside the panel = not real
+    noteBadSample("souradnice mimo displej");
+    return;
+  }
+
   out->points = points;
-  out->x = ((buf[1] & 0x0F) << 8) | buf[2];
-  out->y = ((buf[3] & 0x0F) << 8) | buf[4];
+  out->x = x;
+  out->y = y;
 }

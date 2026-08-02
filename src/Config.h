@@ -68,6 +68,39 @@
 #define OTA_IDLE_MS 300000UL   // leave OTA mode after this long with no upload
 
 // ---------------------------------------------------------------------------
+//  Map orientation
+//  The user picks which compass bearing sits at the TOP of the aircraft radar,
+//  i.e. the direction they are looking. The step must divide 90 evenly,
+//  otherwise the exact cardinal directions (east / west) become unreachable.
+// ---------------------------------------------------------------------------
+#define MAP_ROT_STEP_DEG 45    // degrees per button press (45 -> 8 positions)
+
+// ---------------------------------------------------------------------------
+//  Aircraft detail
+// ---------------------------------------------------------------------------
+// adsb.fi occasionally drops an aircraft from a single poll and sends it again
+// in the next one. Closing the detail panel on the first miss looks like the
+// panel closes by itself, so tolerate this many consecutive misses first.
+#define DETAIL_GRACE_POLLS 2
+
+// ---------------------------------------------------------------------------
+//  Diagnostics
+//
+//  The serial log comes out at 115200 Bd over the connector marked "USB" -
+//  that is the ESP32-S3's native USB. Nothing shows up on the other USB-C
+//  connector on the board.
+// ---------------------------------------------------------------------------
+// 1 = log touch gestures and every aircraft-selection change (with the reason
+// why the detail closed) to the serial console at 115200 Bd.
+#define TOUCH_DEBUG 0
+
+// 1 = measure how long one full-screen flush takes and print min/last/max once
+// per second. Use this to diagnose a flickering band: one frame lasts ~34 ms,
+// so if the flush takes anywhere near that, the copy and the panel's scan-out
+// run at the same speed and keep crossing each other. Set to 0 when done.
+#define FLUSH_DEBUG 0
+
+// ---------------------------------------------------------------------------
 //  Watchdog
 // ---------------------------------------------------------------------------
 #define WDT_TIMEOUT_S 20       // reboot after this many seconds of being stuck

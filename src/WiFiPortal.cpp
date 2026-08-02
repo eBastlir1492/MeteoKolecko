@@ -25,7 +25,7 @@ static void drawApScreen() {
   // Title at the top (inside the circle).
   UI_TextCentered("MeteoPlaneRadar", 34, C_CYAN, 2);
   UI_TextCentered("chiptron.cz", 58, C_GRAY, 1);
-  UI_TextCentered("Scan with your phone:", 78, C_GRAY, 1);
+  UI_TextCentered("Naskenuj mobilem:", 78, C_GRAY, 1);
 
   // QR centred. Round panel - the QR must be smaller so it fits entirely.
   int qrSize = 190;
@@ -35,8 +35,8 @@ static void drawApScreen() {
 
   // Below the QR: SSID + password (centred).
   UI_TextCentered("MeteoPlaneRadar", 300, C_WHITE, 1);
-  UI_TextCentered("no password  |  then 192.168.4.1", 322, C_GRAY, 1);
-  UI_TextCentered("Back: Exit button in the portal (or wait 3 min)", 344, C_GRAY, 1);
+  UI_TextCentered("bez hesla  |  pak 192.168.4.1", 322, C_GRAY, 1);
+  UI_TextCentered("Zpet: tlacitko Exit v portalu (nebo pockej 3 min)", 344, C_GRAY, 1);
 
   extern Arduino_GFX* gfx;
   gfx->flush();   // canvas -> panel
@@ -61,7 +61,7 @@ static void saveParams(WiFiManagerParameter& pLat, WiFiManagerParameter& pLon) {
 
 bool WiFi_ConnectOrPortal() {
   gfx->fillScreen(C_BLACK);
-  UI_TextCentered("Connecting to WiFi...", LCD_HEIGHT / 2, C_WHITE, 2);
+  UI_TextCentered("Pripojuji k WiFi...", LCD_HEIGHT / 2, C_WHITE, 2);
   { extern Arduino_GFX* gfx; gfx->flush(); }
 
   char latBuf[24], lonBuf[24];
@@ -73,8 +73,8 @@ bool WiFi_ConnectOrPortal() {
   wm.setConnectTimeout(20);
   wm.setAPCallback(onAP);
 
-  WiFiManagerParameter pLat("lat", "Latitude (lat)", latBuf, 24);
-  WiFiManagerParameter pLon("lon", "Longitude (lon)", lonBuf, 24);
+  WiFiManagerParameter pLat("lat", "Zeměpisná šířka (lat)", latBuf, 24);
+  WiFiManagerParameter pLon("lon", "Zeměpisná délka (lon)", lonBuf, 24);
   wm.addParameter(&pLat);
   wm.addParameter(&pLon);
   wm.setSaveParamsCallback([&] { saveParams(pLat, pLon); });
@@ -100,8 +100,8 @@ void WiFi_StartPortal() {
   // Menu with an "Exit" button - lets you leave the portal without connecting/resetting.
   const char* menu[] = {"wifi", "info", "exit"};
   wm.setMenu(menu, 3);
-  WiFiManagerParameter pLat("lat", "Latitude (lat)", latBuf, 24);
-  WiFiManagerParameter pLon("lon", "Longitude (lon)", lonBuf, 24);
+  WiFiManagerParameter pLat("lat", "Zeměpisná šířka (lat)", latBuf, 24);
+  WiFiManagerParameter pLon("lon", "Zeměpisná délka (lon)", lonBuf, 24);
   wm.addParameter(&pLat);
   wm.addParameter(&pLon);
   wm.setSaveParamsCallback([&] { saveParams(pLat, pLon); });

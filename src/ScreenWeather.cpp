@@ -67,6 +67,11 @@ static unsigned long s_lastStep = 0, s_gapStart = 0, s_lastFetch = 0;
 
 static int clampI(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+// NOTE: the weather screen is deliberately NOT rotated by the map-rotation
+// setting. A precipitation composite is read as a map and the CR outline is
+// what anchors it, so north stays up here. The rotation only applies to the
+// aircraft radar, which is a "view from where I stand".
+
 // --- Web Mercator ---
 static float mercY(float latDeg) { float r = latDeg * 0.0174532925f; return logf(tanf(0.7853981634f + r * 0.5f)); }
 static float mercTop()    { return mercY(CHMU_LAT_TOP); }

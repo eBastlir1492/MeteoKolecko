@@ -34,6 +34,12 @@ void    Settings_SetMeteoRange(uint8_t idx);
 uint8_t Settings_Screen();
 void    Settings_SetScreen(uint8_t idx);
 
+// Which compass bearing is shown at the TOP of the aircraft radar, in degrees
+// (0..359, multiples of MAP_ROT_STEP_DEG). 0 = north up, 90 = looking east.
+// You set the direction you are actually looking, not an amount to turn by.
+uint16_t Settings_TopBearing();
+void     Settings_SetTopBearing(uint16_t deg);
+
 // Call once per loop(); flushes pending UI-state changes to NVS after a short
 // idle delay (so a swipe does not trigger a flash write every time).
 void    Settings_Tick();

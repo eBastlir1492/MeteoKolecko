@@ -58,6 +58,14 @@ static String s_status = "Starting...";
 // Empty string = nothing selected / detail closed.
 static char s_selectedHex[8] = "";
 
+// Grace period for the detail panel. adsb.fi sometimes omits an aircraft from a
+// single poll and sends it again in the next one; closing the panel on the
+// first miss looks like it closes by itself. We therefore keep the last known
+// data and only give up after DETAIL_GRACE_POLLS consecutive misses.
+static int      s_selMiss = 0;          // consecutive polls without the aircraft
+static Aircraft s_selCache;             // last known data of the selected one
+static bool     s_selCacheOk = false;
+
 // Screen positions from the last draw, for tap-to-select. Parallel to the
 // aircraft list, so s_planeHex[i] records which aircraft the point belongs to
 // and the tap resolves to an identity rather than to a slot number.
@@ -68,21 +76,67 @@ static int  s_planeN = 0;
 
 bool ScreenPlanes_DetailOpen() { return s_selectedHex[0] != '\0'; }
 
-static void selectNone() { s_selectedHex[0] = '\0'; }
+// reason = short text for the serial log, so we can tell WHY the panel closed
+// (user tap vs. the aircraft disappearing from the data).
+static void selectNone(const char* reason) {
+#if TOUCH_DEBUG
+  if (s_selectedHex[0]) Serial.printf("SEL: zavreno (%s) hex=%s\n", reason, s_selectedHex);
+#else
+  (void)reason;
+#endif
+  s_selectedHex[0] = '\0';
+  s_selMiss = 0;
+  s_selCacheOk = false;
+}
 static void selectHex(const char* hex) {
   strncpy(s_selectedHex, hex, sizeof(s_selectedHex) - 1);
   s_selectedHex[sizeof(s_selectedHex) - 1] = '\0';
+  s_selMiss = 0;
+  s_selCacheOk = false;
+#if TOUCH_DEBUG
+  Serial.printf("SEL: vybrano hex=%s\n", s_selectedHex);
+#endif
 }
 
 // Convert an aircraft's lat/lon into screen coordinates (north up).
+// --- Map orientation -------------------------------------------------------
+// The user picks WHICH COMPASS BEARING IS AT THE TOP of the screen, i.e. the
+// direction they are looking out of the window. Everything then follows:
+//
+//     screen angle of bearing b  =  b - topBearing      (0 = up, clockwise)
+//
+// So looking east (top = 90) puts north on the left, which is exactly where it
+// is in reality. Setting an "amount to turn by" instead used to need the
+// opposite value (360 - bearing) and felt like the map was mirrored.
+//
+// We do NOT rotate the display (the canvas only supports rotation 0 and turning
+// the framebuffer would break touch mapping) - the PROJECTION is rotated.
+// Borders and cities go through the same project(), so they follow along for
+// free; only the aircraft icons need their heading corrected separately.
+static float s_rotSin = 0.0f, s_rotCos = 1.0f;   // cached sin/cos of the angle
+static uint16_t s_topDeg = 0;                    // bearing shown at the top
+
+static void refreshRotation() {
+  uint16_t deg = Settings_TopBearing();
+  if (deg == s_topDeg) return;
+  s_topDeg = deg;
+  float r = (float)deg * 0.0174532925f;
+  s_rotSin = sinf(r);
+  s_rotCos = cosf(r);
+}
+
 static void project(float lat, float lon, double clat, double clon,
                     float rangeKm, int* sx, int* sy) {
   float latr = clat * 0.0174532925f;
   float dxKm = (lon - clon) * 111.0f * cosf(latr);
   float dyKm = (lat - clat) * 111.0f;
+  // Rotate the local east/north vector so that the chosen bearing ends up at
+  // the top: with top = 90 (looking east) a target due east appears up.
+  float rx = dxKm * s_rotCos - dyKm * s_rotSin;
+  float ry = dxKm * s_rotSin + dyKm * s_rotCos;
   float scale = (float)R_RADIUS / rangeKm;   // px per km
-  *sx = R_CX + (int)(dxKm * scale);
-  *sy = R_CY - (int)(dyKm * scale);
+  *sx = R_CX + (int)(rx * scale);
+  *sy = R_CY - (int)(ry * scale);
 }
 
 // Wrapper matching the ProjectFn signature (used to draw the map via EuBorder).
@@ -158,20 +212,32 @@ void ScreenPlanes_Enter() {
 }
 
 bool ScreenPlanes_Tick() {
-  if (WiFi.status() != WL_CONNECTED) { s_status = "Waiting for WiFi"; return false; }
+  if (WiFi.status() != WL_CONNECTED) { s_status = "Cekam na WiFi"; return false; }
 
   if (millis() >= s_nextFetch) {
-    s_status = "Fetching...";
+    s_status = "Stahuji...";
     s_dataOk = ADSB_Fetch(Settings_Lat(), Settings_Lon(), currentRange());
-    s_status = s_dataOk ? "OK" : "Error";
+    s_status = s_dataOk ? "OK" : "Chyba";
     // Normal cadence depends on range; after a failure back off to double the
     // interval rather than hammering the API at the normal rate.
     unsigned long period = basePeriodMs();
     s_nextFetch = millis() + (s_dataOk ? period : period * 2);
-    // Nothing to fix up here: the selection is an ICAO hex, not an index, so a
-    // reordered list cannot move it onto a different aircraft. Whether the
-    // selected aircraft is still present is resolved at draw time via
-    // ADSB_FindByHex(), which also closes the detail if it has left the area.
+
+    // Selection bookkeeping happens HERE (once per poll), not while drawing -
+    // drawing runs many times per second and would burn the grace period in an
+    // instant. The selection is an ICAO hex, so a reordered list cannot move it
+    // onto a different aircraft.
+    if (s_dataOk && ScreenPlanes_DetailOpen()) {
+      if (ADSB_FindByHex(s_selectedHex) >= 0) {
+        s_selMiss = 0;                       // still there
+      } else if (++s_selMiss > DETAIL_GRACE_POLLS) {
+        selectNone("letadlo zmizelo z dat");
+      }
+#if TOUCH_DEBUG
+      else Serial.printf("SEL: chybi v datech (%d/%d) hex=%s\n",
+                         s_selMiss, DETAIL_GRACE_POLLS, s_selectedHex);
+#endif
+    }
     return true;   // new data -> redraw
   }
   return false;    // otherwise skip the redraw (keeps swiping responsive)
@@ -189,7 +255,7 @@ bool ScreenPlanes_HandleTap(int x, int y) {
       Settings_SetMetricUnits(!Settings_MetricUnits());   // toggle + persist
       return true;
     }
-    selectNone();   // tapped elsewhere -> close
+    selectNone("tap mimo panel");   // tapped elsewhere -> close
     return true;
   }
   // Find the aircraft nearest the tap (within 30 px), then remember *which
@@ -219,10 +285,11 @@ void ScreenPlanes_ChangeRange(int dir) {
 }
 
 // Close the detail panel (called on the long-press screen switch).
-void ScreenPlanes_CloseDetail() { selectNone(); }
+void ScreenPlanes_CloseDetail() { selectNone("dlouhy stisk / prepnuti obrazovky"); }
 
 void ScreenPlanes_Draw() {
   gfx->fillScreen(C_BLACK);
+  refreshRotation();           // pick up a changed rotation setting
   float range = currentRange();
 
   // --- Map underlay ---
@@ -270,8 +337,10 @@ void ScreenPlanes_Draw() {
   // Resolve the selection once per frame. If the aircraft has left the area it
   // is simply not in the new data, so the detail closes by itself rather than
   // silently latching onto whoever now sits at that index.
+  // Do NOT close the panel here - that is decided once per poll in Tick(), so
+  // the grace period actually lasts. While the aircraft is missing we keep
+  // drawing the last known values from the cache.
   int selIdx = ADSB_FindByHex(s_selectedHex);
-  if (ScreenPlanes_DetailOpen() && selIdx < 0) selectNone();
 
   for (int i = 0; i < n; i++) {
     s_planeX[i] = -9999; s_planeY[i] = -9999;   // default: off-screen
@@ -292,7 +361,11 @@ void ScreenPlanes_Draw() {
     if (i == selIdx) gfx->drawCircle(sx, sy, 16, C_WHITE);
     // Altitude is only meaningful when the aircraft actually reports it.
     bool altKnown = (list[i].altFt > 0.0f);
-    drawPlane(sx, sy, list[i].track, list[i].hasTrack,
+    // The map is turned, so the icon heading has to be corrected the same way -
+    // otherwise the aircraft would point the wrong direction.
+    float screenTrack = list[i].track - (float)s_topDeg;
+    while (screenTrack < 0.0f) screenTrack += 360.0f;
+    drawPlane(sx, sy, screenTrack, list[i].hasTrack,
               altColor(list[i].altFt, altKnown));
     if (list[i].callsign[0]) {
       // Callsign below the icon, centred (the icon has a radius of ~14 px).
@@ -310,7 +383,7 @@ void ScreenPlanes_Draw() {
   if (WiFi.status() != WL_CONNECTED || !s_dataOk) {
     UI_TextCentered(s_status.c_str(), 48, C_YELLOW, 2);
   } else {
-    snprintf(sub, sizeof(sub), "%d aircraft", shown);
+    snprintf(sub, sizeof(sub), "Letadel: %d", shown);
     UI_TextCentered(sub, 48, C_CYAN, 2);
   }
 
@@ -347,15 +420,36 @@ void ScreenPlanes_Draw() {
     gfx->print("km");
   }
 
-  // Range indicator at the bottom.
+  // --- Compass marks ---
+  // Bearing b appears on screen at angle (b - rotation), 0 = up, clockwise.
+  // Small size-1 letters at r = 205 slot in between the screen dots (y=18),
+  // the aircraft count (y=48) and the range row at the bottom.
+  {
+    const int   cr = 205;
+    const char* lbl[4] = { "S", "V", "J", "Z" };   // sever, vychod, jih, zapad
+    const int   brg[4] = { 0, 90, 180, 270 };
+    gfx->setTextSize(1);
+    gfx->setTextColor(C_GRAY);
+    for (int i = 0; i < 4; i++) {
+      // Bearing b shows up at screen angle (b - topBearing).
+      float a = (brg[i] - (int)s_topDeg) * 0.0174532925f;
+      int cxp = R_CX + (int)(cr * sinf(a)) - 3;   // -3/-4 centres the glyph
+      int cyp = R_CY - (int)(cr * cosf(a)) - 4;
+      gfx->setCursor(cxp, cyp);
+      gfx->print(lbl[i]);
+    }
+  }
+
+  // Range indicator at the bottom (moved up a little to leave room for the
+  // southern compass mark).
   char rbuf[16];
   snprintf(rbuf, sizeof(rbuf), "%.0f km", range);
-  UI_TextCentered(rbuf, LCD_HEIGHT - 66, C_YELLOW, 2);
+  UI_TextCentered(rbuf, LCD_HEIGHT - 76, C_YELLOW, 2);
 
   int dotGap = 24;
   int totalW = (RANGE_COUNT - 1) * dotGap;
   int startX = R_CX - totalW / 2;
-  int dotY = LCD_HEIGHT - 34;
+  int dotY = LCD_HEIGHT - 50;
   for (int i = 0; i < RANGE_COUNT; i++) {
     int x = startX + i * dotGap;
     if (i == s_rangeIdx) gfx->fillCircle(x, dotY, 5, C_YELLOW);
@@ -366,8 +460,13 @@ void ScreenPlanes_Draw() {
   // selIdx was resolved from the hex at the top of the frame, so this always
   // shows the aircraft that was actually tapped, with values refreshed from the
   // latest fetch (altitude, speed and climb rate update live while it is open).
-  if (selIdx >= 0 && selIdx < n) {
-    const Aircraft& ac = list[selIdx];
+  // Keep a copy of the selected aircraft so the panel can still be drawn while
+  // the aircraft is temporarily missing from the data (grace period).
+  if (selIdx >= 0 && selIdx < n) { s_selCache = list[selIdx]; s_selCacheOk = true; }
+  const bool signalLost = (selIdx < 0) && s_selCacheOk;
+
+  if (ScreenPlanes_DetailOpen() && s_selCacheOk) {
+    const Aircraft& ac = s_selCache;
     const bool metric = Settings_MetricUnits();
 
     // Panel centred so it fits inside the round display.
@@ -394,39 +493,48 @@ void ScreenPlanes_Draw() {
     gfx->setTextSize(2); gfx->setTextColor(C_WHITE);
 
     // Altitude: ft or m.
-    if (metric) snprintf(line, sizeof(line), "Alt: %.0f m", ac.altFt * 0.3048f);
-    else        snprintf(line, sizeof(line), "Alt: %.0f ft", ac.altFt);
+    if (metric) snprintf(line, sizeof(line), "Vyska: %.0f m", ac.altFt * 0.3048f);
+    else        snprintf(line, sizeof(line), "Vyska: %.0f ft", ac.altFt);
     gfx->setCursor(px + 18, ty); gfx->print(line); ty += 26;
 
     // Speed: kt or km/h.
-    if (metric) snprintf(line, sizeof(line), "Speed: %.0f km/h", ac.gsKt * 1.852f);
-    else        snprintf(line, sizeof(line), "Speed: %.0f kt", ac.gsKt);
+    if (metric) snprintf(line, sizeof(line), "Rychlost: %.0f km/h", ac.gsKt * 1.852f);
+    else        snprintf(line, sizeof(line), "Rychlost: %.0f kt", ac.gsKt);
     gfx->setCursor(px + 18, ty); gfx->print(line); ty += 26;
 
     // Ground track.
-    if (ac.hasTrack) snprintf(line, sizeof(line), "Track: %.0f deg", ac.track);
-    else             snprintf(line, sizeof(line), "Track: unknown");
+    if (ac.hasTrack) snprintf(line, sizeof(line), "Kurz: %.0f deg", ac.track);
+    else             snprintf(line, sizeof(line), "Kurz: neznamy");
     gfx->setCursor(px + 18, ty); gfx->print(line); ty += 26;
 
     // Climb/descent - short label + units so the line does not overflow.
     // An arrow instead of the words "climbing/descending".
     const char* ar = ac.baroRate > 100 ? "^" : (ac.baroRate < -100 ? "v" : "-");
-    if (metric) snprintf(line, sizeof(line), "V/S: %.1f m/s %s", ac.baroRate * 0.00508f, ar);
-    else        snprintf(line, sizeof(line), "V/S: %.0f ft/m %s", ac.baroRate, ar);
+    if (metric) snprintf(line, sizeof(line), "Stoupani: %.1f m/s %s", ac.baroRate * 0.00508f, ar);
+    else        snprintf(line, sizeof(line), "Stoupani: %.0f ft/m %s", ac.baroRate, ar);
     gfx->setCursor(px + 18, ty); gfx->print(line); ty += 26;
 
     // Type (if known).
     if (ac.type[0]) {
-      snprintf(line, sizeof(line), "Type: %s", ac.type);
+      snprintf(line, sizeof(line), "Typ: %s", ac.type);
       gfx->setCursor(px + 18, ty); gfx->print(line);
+    }
+
+    // While the aircraft is missing from the data (grace period) say so, so the
+    // frozen values are not mistaken for live ones.
+    if (signalLost) {
+      gfx->setTextSize(1); gfx->setTextColor(C_YELLOW);
+      const char* lost = "signal ztracen";
+      gfx->setCursor(px + pw - 18 - (int)strlen(lost) * 6, py + ph - 56);
+      gfx->print(lost);
     }
 
     // Units toggle button at the bottom.
     int btnY = py + ph - 42;
     gfx->fillRoundRect(px + 18, btnY, pw - 36, 32, 8, C_CYAN);
     gfx->setTextSize(1); gfx->setTextColor(C_BLACK);
-    const char* btnLabel = metric ? "Units: metric (tap = aviation)"
-                                   : "Units: aviation (tap = metric)";
+    const char* btnLabel = metric ? "Jednotky: metricke (klik = letecke)"
+                                   : "Jednotky: letecke (klik = metricke)";
     int tw = strlen(btnLabel) * 6;
     gfx->setCursor(px + 18 + (pw - 36 - tw) / 2, btnY + 12);
     gfx->print(btnLabel);

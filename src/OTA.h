@@ -8,7 +8,8 @@
 //  Board:   Waveshare ESP32-S3-Touch-LCD-2.1 (round 480x480 display, ST7701)
 //
 //  Requires a DUAL-APP (OTA) partition scheme - see partitions.csv.
-//  Libraries: ElegantOTA (ayushsharma82), ESPAsyncWebServer + AsyncTCP.
+//  Library: ElegantOTA (ayushsharma82) in its default synchronous mode -
+//  uses the core's WebServer, so nothing else needs installing or patching.
 // =============================================================================
 #pragma once
 #include <Arduino.h>

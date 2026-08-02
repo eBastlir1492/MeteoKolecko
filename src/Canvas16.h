@@ -27,7 +27,16 @@ class Canvas16 : public Arduino_GFX {
   Canvas16(int16_t w, int16_t h) : Arduino_GFX(w, h) {}
 
   ~Canvas16() {
-    if (_fb) heap_caps_free(_fb);
+    if (_owned && _fb) heap_caps_free(_fb);
+  }
+
+  // Draw into one of the panel's own framebuffers (zero-copy double buffering).
+  // idx says which one it is, so flush() knows which to switch to next.
+  void useExternalBuffer(uint16_t* fb, int idx) {
+    if (_owned && _fb) heap_caps_free(_fb);
+    _fb = fb;
+    _fbIndex = idx;
+    _owned = false;
   }
 
   bool begin(int32_t speed = GFX_NOT_DEFINED) override {
@@ -35,18 +44,29 @@ class Canvas16 : public Arduino_GFX {
     if (!_fb) {
       size_t bytes = (size_t)WIDTH * HEIGHT * 2;
       _fb = (uint16_t*)heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      _owned = true;
     }
     return _fb != nullptr;
   }
 
   uint16_t* getFramebuffer() { return _fb; }
 
-  // Single controlled flush: whole canvas -> panel, one draw_bitmap.
-  // Signature must match Arduino_GFX::flush(bool) exactly so that a call through
-  // an Arduino_GFX* (as in the .ino) is dispatched here and not to the base.
+  // Single controlled flush. Signature must match Arduino_GFX::flush(bool)
+  // exactly so a call through an Arduino_GFX* is dispatched here, not to the base.
+  //
+  // In zero-copy mode this hands the finished framebuffer to the panel and then
+  // moves drawing to the other one, so the next frame is never drawn into the
+  // buffer currently on screen. Doing the switch HERE means every gfx->flush()
+  // in the project (radar, weather, WiFi portal, OTA) gets it automatically.
   void flush(bool force_flush = false) override {
     (void)force_flush;
-    if (_fb) LCD_Flush(_fb);
+    if (!_fb) return;
+    LCD_Flush(_fb);
+    if (!_owned) {
+      int next = _fbIndex ^ 1;
+      uint16_t* nb = LCD_FrameBuffer(next);
+      if (nb) { _fb = nb; _fbIndex = next; }
+    }
   }
 
   // --- Core writers (rotation 0 only). All are bounds-checked so a stray
@@ -102,4 +122,6 @@ class Canvas16 : public Arduino_GFX {
 
  private:
   uint16_t* _fb = nullptr;
+  int       _fbIndex = 0;     // which panel framebuffer _fb points at
+  bool      _owned = false;   // false = the buffer belongs to the panel driver
 };

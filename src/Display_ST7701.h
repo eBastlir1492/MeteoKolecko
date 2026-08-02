@@ -69,9 +69,21 @@ void ST7701_Init();
 // Blit a colour rectangle straight to the panel (x2/y2 inclusive).
 void LCD_DrawBitmap(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t* color);
 
-// Push a full 480x480 canvas to the panel in ONE draw_bitmap call. This is THE
-// flush - the only place a whole-screen buffer is handed to the driver. Keeping
-// it single and rare (instead of pixel-by-pixel) is the core anti-flicker fix.
+// --- Double buffering (zero copy) -------------------------------------------
+// The panel owns TWO framebuffers in PSRAM. We draw straight into the one that
+// is NOT being displayed and then hand that pointer to the driver, which only
+// switches the DMA over at the next VSYNC - no 450 kB copy at all.
+//
+// Why this matters: copying a whole frame took ~28 ms while one frame lasts
+// ~34 ms, so the write pointer and the panel's scan-out crawled along together
+// and kept crossing each other, tearing a band of rows across the middle.
+//
+// Returns the framebuffer to draw into (idx 0 or 1), or nullptr if the driver
+// did not give us one - the caller then falls back to its own buffer + copy.
+uint16_t* LCD_FrameBuffer(int idx);
+
+// Show the given buffer. If it is one of the panel's own framebuffers this is a
+// pointer switch (zero copy); any other pointer is copied in as before.
 void LCD_Flush(const uint16_t* fb);
 
 // Backlight, 0-100.

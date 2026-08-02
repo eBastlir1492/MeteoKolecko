@@ -24,12 +24,18 @@
 //    - long press RIGHT half        = next screen
 //    - hold BOOT at startup (~3 s)  = factory reset
 //
-//  Anti-flicker (verified, ported from the SatRadar project):
-//    - single off-screen canvas in PSRAM (Canvas16), pushed to the panel with
-//      ONE draw_bitmap per frame instead of pixel-by-pixel (Display_ST7701),
-//    - RGB pixel clock 8 MHz + num_fbs=1 with bounce buffers (no double_fb),
-//    so the PSRAM bus is never hit by simultaneous read (RGB DMA) and a stream
-//    of tiny writes, which was what made pixels flicker.
+//  Map orientation (Settings -> "Nahore"):
+//    You set WHICH DIRECTION IS AT THE TOP of the aircraft radar - simply the
+//    way you are looking out of the window. Pick "V" and everything east of you
+//    is drawn at the top, north ends up on the left, exactly as in reality.
+//    "+" walks the compass clockwise (S -> SV -> V -> JV ...), MAP_ROT_STEP_DEG
+//    (45 deg) per press, and the value survives a restart. The compass marks
+//    S/V/J/Z around the rim and the small compass next to the buttons show
+//    where north currently is. The weather screen is deliberately NOT turned -
+//    a precipitation map is read north-up.
+//
+//  Serial log: 115200 Bd over the connector marked "USB" (the ESP32-S3 native
+//  USB). The other USB-C connector on the board will not show anything.
 //
 //  Libraries used (Arduino IDE, ESP32 core 3.x):
 //    - GFX Library for Arduino (moononournation) - drawing
@@ -95,12 +101,12 @@ static void checkBootReset() {
   pinMode(BOOT_PIN, INPUT_PULLUP);
   if (digitalRead(BOOT_PIN) != LOW) return;
   gfx->fillScreen(C_BLACK);
-  UI_TextCentered("Hold to reset...", LCD_HEIGHT / 2, C_WHITE, 2);
+  UI_TextCentered("Drzte pro reset...", LCD_HEIGHT / 2, C_WHITE, 2);
   gfx->flush();
   unsigned long start = millis();
   while (digitalRead(BOOT_PIN) == LOW) {
     if (millis() - start >= 3000) {
-      UI_TextCentered("Erasing settings", LCD_HEIGHT / 2 + 30, C_RED, 2);
+      UI_TextCentered("Mazu nastaveni", LCD_HEIGHT / 2 + 30, C_RED, 2);
       gfx->flush();
       Settings_ClearAll();
       WiFi_Reset();
@@ -136,7 +142,7 @@ static void drawActive() {
     case SCREEN_SETTINGS: ScreenSettings_Draw(); break;
   }
   drawScreenDots();
-  gfx->flush();    // push the whole frame to the panel at once
+  gfx->flush();    // hand the framebuffer over; Canvas16 switches to the other
 }
 
 static void enterActive() {
@@ -210,7 +216,13 @@ void setup() {
   // Single PSRAM canvas (anti-flicker). All drawing goes here; flush() pushes
   // the whole frame to the panel in one draw_bitmap.
   Canvas16* canvas = new Canvas16(LCD_WIDTH, LCD_HEIGHT);
-  if (!canvas->begin()) {
+  // Prefer drawing straight into the panel's second framebuffer (no copy on
+  // flush). Fall back to our own buffer if the driver does not expose them.
+  uint16_t* fb1 = LCD_FrameBuffer(1);
+  if (fb1) {
+    canvas->useExternalBuffer(fb1, 1);
+    Serial.println("Displej: dvojity framebuffer, kresleni bez kopirovani");
+  } else if (!canvas->begin()) {
     Serial.println("FATAL: canvas alloc failed (check OPI PSRAM)");
     while (true) delay(1000);
   }
@@ -263,6 +275,17 @@ void loop() {
     int dy = lastY - startY;
     unsigned long dur = millis() - startMs;
     bool smallMove = (abs(dx) < 60 && abs(dy) < 60);
+
+#if TOUCH_DEBUG
+    // Log every finished gesture. Together with the SEL: lines from ScreenPlanes
+    // this shows whether a detail panel closed because of a (possibly spurious)
+    // touch, or because the aircraft dropped out of the data.
+    Serial.printf("TOUCH: start=(%d,%d) konec=(%d,%d) dx=%d dy=%d %lums -> %s\n",
+                  startX, startY, lastX, lastY, dx, dy, (unsigned long)dur,
+                  (abs(dx) >= 70 && abs(dy) <= 90 && dur <= 700) ? "swipe"
+                    : (smallMove && dur >= 500) ? "dlouhy stisk"
+                    : (smallMove) ? "klepnuti" : "ignorovano");
+#endif
 
     if (abs(dx) >= 70 && abs(dy) <= 90 && dur <= 700) {
       // Horizontal swipe -> change the range. If a detail is open, a swipe just
