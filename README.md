@@ -50,8 +50,15 @@ Stačí tahle jedna deska a USB‑C kabel. Nic se nepájí ani nedrátuje.
   5 min, ~2 sn./s, pauza mezi cykly), **indikací času** ke každému snímku
   („nyní / −X min“ + HH:MM), legendou dBZ / mm/h, obrysem ČR a městy. Obraz je
   maskovaný do kruhu displeje.
-- **Nastavení** — jas, WiFi (captive portál s QR kódem), poloha, zobrazení
-  aktuální verze firmwaru a tlačítko pro bezdrátovou aktualizaci.
+- **Nastavení** — jas, WiFi (captive portál s QR kódem), poloha, orientace
+  mapy, zobrazení aktuální verze firmwaru a tlačítko pro bezdrátovou
+  aktualizaci.
+- **Orientace podle výhledu** — v Nastavení řádek `Nahore` s tlačítky `−` / `+`
+  určuje, **který světový směr je nahoře na displeji**. Nastavíte směr, kterým
+  se díváte z okna (`S`, `SV`, `V`, …), a letadla na displeji jsou ve stejném
+  směru jako ta za sklem. Osm poloh po 45°, vedle tlačítek je kompasový náhled
+  a po obvodu radaru značky S/V/J/Z. Meteoradar se záměrně neotáčí — srážková
+  mapa se čte severem nahoru.
 - **Aktualizace přes WiFi (OTA)** — nový firmware nahrajete z prohlížeče bez
   USB kabelu.
 - **Pamatuje si stav** — poslední zvolený rozsah (zvlášť pro letadla a
@@ -106,7 +113,8 @@ Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně 
 
 1. Stáhněte si z [**Releases**](../../releases) soubor
    **`MeteoPlaneRadar_v0.4.ino.merged.bin`** (ten s `merged`).
-2. Připojte desku USB‑C kabelem k počítači.
+2. Připojte desku k počítači USB‑C kabelem — do konektoru označeného **USB**
+   (viz poznámka o konektorech níže).
 3. Otevřete **[esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz)**
    v prohlížeči **Chrome** nebo **Edge** (Firefox a Safari to neumí).
 4. Vyberte **ESP32‑S3**, vyberte stažený soubor a spusťte nahrávání.
@@ -143,6 +151,31 @@ Nechcete nakonec nahrávat? Klepnutím na displej režim aktualizace opustíte. 
 
 ---
 
+## Sériový výpis (diagnostika)
+
+Zařízení vypisuje na sériovou linku informace o připojení, stahování dat a
+případných chybách. Hodí se, když něco nefunguje a chcete zjistit proč.
+
+> ### ⚠️ Který USB‑C konektor použít
+> Deska má **dva USB‑C konektory**. Pro sériový výpis musí být kabel v tom
+> označeném **USB** — to je nativní USB vedené přímo do čipu ESP32‑S3.
+> Přes druhý konektor se v Sériovém monitoru **nic neobjeví**.
+
+Otevřete Sériový monitor (v Arduino IDE, nebo libovolný terminál) a nastavte
+rychlost **115200 Bd**. Po startu uvidíte například:
+
+```
+=== MeteoPlaneRadar v0.5.1 ===
+Displej: dvojity framebuffer, kresleni bez kopirovani
+WiFi ok, IP 192.168.1.42
+ADSB: 12 aircraft (8421 bytes)
+Meteoradar: 6 ramcu
+```
+
+Podrobnější ladicí výpisy (gesta dotyku, důvody zavření detailu letadla, doba
+překreslení) se zapínají v `src/Config.h` přepínači `TOUCH_DEBUG` a
+`FLUSH_DEBUG`. Pro běžný provoz je nechte na 0.
+
 ## Pro vývojáře: překlad ze zdrojáků
 
 Tahle část je jen pro ty, kdo si chtějí projekt upravit. Pokud jste nahráli
@@ -175,6 +208,9 @@ ESP32 core.
 | Flash Mode | QIO 80MHz |
 | **Partition Scheme** | **Custom** (použije se přiložený `src/partitions.csv`) |
 | USB CDC On Boot | Enabled |
+
+Nahrávat i číst sériový výpis je potřeba přes konektor označený **USB**
+(nativní USB čipu ESP32‑S3), ne přes ten druhý.
 
 Partition **Custom** je pro OTA nutná — přiložená tabulka má dvě aplikační
 oblasti (2× 6 MB), aby bylo kam nahrát novou verzi. Po překladu zkontrolujte

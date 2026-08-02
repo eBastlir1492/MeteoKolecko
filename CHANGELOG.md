@@ -6,8 +6,85 @@ verzování je [semantické](https://semver.org/lang/cs/).
 
 Verze je v jediném místě: `src/Version.h` (`FW_VERSION`). Zobrazuje se na
 obrazovce Nastavení, na OTA obrazovce a v sériovém výpisu při startu.
+Laditelné konstanty (krok otočení, tolerance výpadků, ladicí výpisy) jsou
+pohromadě v `src/Config.h`.
 
 ---
+
+## [0.5.2]
+
+### Změněno
+- **Otočení mapy se nastavuje srozumitelněji.** Řádek v Nastavení se jmenuje
+  `Nahore` a udává, **který světový směr je nahoře na displeji** — tedy směr,
+  kterým se díváte z okna. Dřív se zadávalo „o kolik mapu otočit", což je něco
+  jiného: pro výhled na východ bylo potřeba nastavit 270°, a při špatné hodnotě
+  mapa působila zrcadlově. Nově se zadává rovnou `V`.
+  Hodnota se zobrazuje jako zkratka světové strany (`S`, `SV`, `V`, `JV`, `J`,
+  `JZ`, `Z`, `SZ`), tlačítko `+` jde po směru hodinových ručiček.
+  Uloženo je pod novým klíčem v NVS, takže **stará hodnota se po aktualizaci
+  nepřenese** a orientace začíná na severu nahoře — nastavte si ji prosím
+  znovu (jedno klepnutí).
+
+## [0.5.1]
+
+### Opraveno
+- **Detail letadla se zavíral sám od sebe.** Skutečnou příčinou nebyla data
+  z adsb.fi, ale **vadná čtení z dotykového řadiče**. Když I2C přenos selže na
+  úrovni dat, CST820 vrátí samé `0xFF` — a to se dekódovalo jako „15 bodů na
+  souřadnicích (4095, 4095)", tedy jako platné klepnutí mimo panel, které
+  detail zavřelo. Ve výpisu uživatele tomu odpovídá **každé** samovolné
+  zavření. Nově se surová data ověřují: zahodí se samé `0xFF`, nesmyslný počet
+  bodů (CST820 je jednodotykový) i souřadnice mimo displej. Počet zahozených
+  čtení se při zapnutém `TOUCH_DEBUG` vypisuje jednou za sekundu.
+
+## [0.5]
+
+### Přidáno
+- **Otočení mapy** — v Nastavení přibyl řádek `Otoceni` s tlačítky `−` / `+`,
+  krok **45°** (osm poloh). Slouží k tomu, aby letadlo viděné z okna bylo na
+  displeji ve stejném směru. Otáčí se **projekce**, ne displej, takže se spolu
+  s letadly správně otočí i obrys států, města a ikony letadel.
+  Vedle ovládání je **kompasový náhled** (kroužek s ryskou a písmenem S), takže
+  je nastavení vidět hned bez přepínání na radar.
+  **Meteoradar se záměrně neotáčí** — srážková mapa se čte severem nahoru a
+  orientaci v ní drží obrys ČR.
+  Tlačítko `+` otáčí mapou **po směru hodinových ručiček** (sever putuje nahoru
+  → vpravo nahoru → vpravo), `−` opačně.
+  Krok se dá změnit přes `MAP_ROT_STEP_DEG` v `Config.h` — musí ale dělit 90,
+  jinak přestanou být dosažitelné přesný východ a západ.
+- **Značky světových stran** (S, V, J, Z) po obvodu radaru letadel; otáčejí se
+  spolu s mapou.
+
+### Změněno
+- **Uživatelské rozhraní je celé česky** (bez diakritiky — vestavěný font umí
+  jen ASCII). Například „Letadel: 12", „Nastaveni", „Jas", „Poloha",
+  „Aktualizace FW", v detailu letadla „Vyska", „Rychlost", „Kurz", „Stoupani".
+- Rozvržení obrazovky Nastavení zhuštěno, aby se vešel řádek s otočením.
+
+### Opraveno
+- **Trhající se pás uprostřed displeje.** Měření ukázalo, že kopie celého
+  snímku do framebufferu panelu trvala **28 ms**, zatímco jeden snímek trvá
+  34 ms — zápis a vykreslování se tedy pohybovaly skoro stejnou rychlostí a
+  někde uprostřed obrazovky se předjely. Nově má panel **dva framebuffery** a
+  kreslí se rovnou do toho, který zrovna není vidět (`num_fbs = 2`, bounce
+  buffery pryč). Driver pozná svůj vlastní buffer a místo kopírování jen
+  přepne DMA, takže se ta 28ms kopie neprovádí vůbec a zátěž sběrnice PSRAM
+  výrazně klesne.
+- **Detail letadla se už nezavírá sám.** adsb.fi občas letadlo v jednom stažení
+  vynechá a v dalším ho zase pošle; dřív stačil jeden takový výpadek a panel se
+  zavřel. Nově se tolerují **dvě po sobě jdoucí chybějící stažení**
+  (`DETAIL_GRACE_POLLS` v `Config.h`), během nichž panel zůstane otevřený
+  s posledními známými hodnotami a poznámkou „signal ztracen".
+
+### Diagnostika
+- Volitelné **měření doby překreslení** (`FLUSH_DEBUG` v `Config.h`) — jednou
+  za sekundu vypíše min/poslední/max dobu jednoho flushe. Slouží k ověření,
+  jestli se stíhá překreslit do jednoho snímku.
+- Volitelné **ladicí výpisy dotyku** (`TOUCH_DEBUG` v `Config.h`, výchozí
+  zapnuto). Do sériové linky se vypisuje každé dokončené gesto i každá změna
+  výběru letadla **včetně důvodu**, proč se detail zavřel (`tap mimo panel`,
+  `letadlo zmizelo z dat`, `dlouhy stisk`). Podle toho jde odlišit falešný
+  dotyk od výpadku dat.
 
 ## [0.4]
 
