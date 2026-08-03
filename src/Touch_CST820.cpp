@@ -47,9 +47,15 @@ static uint32_t s_badReads = 0;      // rejected samples since the last report
 static uint32_t s_badReported = 0;   // millis() of the last report
 #endif
 
+// Consecutive rejected samples. A handful is normal on a busy bus; a long run
+// means the controller is wedged and needs a reset. Counted regardless of
+// TOUCH_DEBUG, because the recovery below depends on it.
+static uint16_t s_badRun = 0;
+
 // Report a rejected sample at most once a second, so a noisy bus cannot flood
 // the console (and slow everything down in the process).
 static void noteBadSample(const char* why) {
+  s_badRun++;
 #if TOUCH_DEBUG
   s_badReads++;
   uint32_t now = millis();
@@ -64,11 +70,22 @@ static void noteBadSample(const char* why) {
 #endif
 }
 
+// An I2C glitch can leave the CST820 answering but talking nonsense, and it
+// never recovers on its own - the touchscreen simply stops working until the
+// board is power-cycled. A long run of rejected samples is the symptom, so
+// reset the chip and start over.
+static void recoverIfWedged() {
+  if (s_badRun < TOUCH_REINIT_BAD) return;
+  s_badRun = 0;
+  Serial.println("TOUCH: prilis mnoho vadnych cteni, resetuji radic");
+  Touch_Init();
+}
+
 void Touch_Read(TouchData* out) {
   out->points = 0;
   uint8_t buf[6] = {};
   // Register 0x02 = number of points, followed by the coordinates.
-  if (!readRegs(0x02, buf, 6)) return;
+  if (!readRegs(0x02, buf, 6)) { noteBadSample("I2C cteni selhalo"); recoverIfWedged(); return; }
 
   // --- Sanity checks on the data itself -------------------------------------
   // The I2C transfer can succeed (the chip ACKs) and still hand back garbage,
@@ -77,13 +94,15 @@ void Touch_Read(TouchData* out) {
   // exactly what kept closing the aircraft detail panel on its own.
   if (buf[0] == 0xFF && buf[1] == 0xFF && buf[2] == 0xFF) {
     noteBadSample("same 0xFF");
+    recoverIfWedged();
     return;
   }
 
   uint8_t points = buf[0] & 0x0F;
-  if (points == 0) return;              // no finger - the normal case
+  if (points == 0) { s_badRun = 0; return; }   // no finger - the normal case
   if (points > 1) {                     // CST820 is a single-touch controller
     noteBadSample("nesmyslny pocet bodu");
+    recoverIfWedged();
     return;
   }
 
@@ -91,9 +110,11 @@ void Touch_Read(TouchData* out) {
   uint16_t y = ((buf[3] & 0x0F) << 8) | buf[4];
   if (x >= LCD_WIDTH || y >= LCD_HEIGHT) {   // outside the panel = not real
     noteBadSample("souradnice mimo displej");
+    recoverIfWedged();
     return;
   }
 
+  s_badRun = 0;          // a fully valid sample - the controller is healthy
   out->points = points;
   out->x = x;
   out->y = y;

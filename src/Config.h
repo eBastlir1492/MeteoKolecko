@@ -22,10 +22,14 @@
 #define BOOT_PIN  0        // hold at power-up (~3 s) = factory reset
 
 // ---------------------------------------------------------------------------
-//  Time zone (POSIX TZ string) + NTP
+//  Time zone (POSIX TZ string)
+//
+//  There is no NTP client and no system clock - see the note above setup() in
+//  the .ino. This string is still needed: CHMU.cpp turns each frame's UTC
+//  timestamp into local time through localtime_r(), and these rules are what
+//  decide CET or CEST for the date of that particular frame.
 // ---------------------------------------------------------------------------
 #define TZ_INFO   "CET-1CEST,M3.5.0,M10.5.0/3"
-#define NTP_SERVER "pool.ntp.org"
 
 // ---------------------------------------------------------------------------
 //  Default location (Prague). Overwritten on first boot by IP geolocation, or
@@ -74,6 +78,32 @@
 //  otherwise the exact cardinal directions (east / west) become unreachable.
 // ---------------------------------------------------------------------------
 #define MAP_ROT_STEP_DEG 45    // degrees per button press (45 -> 8 positions)
+
+// ---------------------------------------------------------------------------
+//  Touch
+// ---------------------------------------------------------------------------
+// The CST820 drops the odd sample in the middle of a drag, and a failed I2C
+// read is thrown away for the same reason (see Touch_CST820.cpp). Ending the
+// gesture on the first empty sample would turn one swipe into several bogus
+// taps - so require this much continuous silence before accepting that the
+// finger is really up. Real gestures last 40 ms and up, so 60 ms costs nothing.
+#define TOUCH_RELEASE_MS 60
+
+// After this many consecutive rejected samples the controller is assumed to be
+// wedged (typically after an I2C glitch) and gets re-initialised.
+#define TOUCH_REINIT_BAD 40
+
+// ---------------------------------------------------------------------------
+//  Network
+// ---------------------------------------------------------------------------
+// A TLS handshake needs roughly 45 kB of internal RAM. Starting one with less
+// than this free fails deep inside mbedTLS and surfaces as a bare "HTTP -1",
+// so skip the poll instead and try again later.
+#define NET_MIN_HEAP 60000
+
+// The WiFi portal blocks the whole sketch and the watchdog is suspended while
+// it runs, so this timeout is what keeps it from blocking forever.
+#define PORTAL_TIMEOUT_S 180
 
 // ---------------------------------------------------------------------------
 //  Aircraft detail

@@ -64,8 +64,9 @@
 
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
-#include <time.h>
+#include <time.h>   // tzset() - see the note above setup()
 #include "esp_heap_caps.h"
+#include "esp_system.h"   // esp_reset_reason()
 
 #include "TCA9554.h"
 #include "Display_ST7701.h"
@@ -196,12 +197,49 @@ static bool activeModalOpen() {
   return (s_screen == SCREEN_PLANES) && ScreenPlanes_DetailOpen();
 }
 
+static const char* resetReasonText() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:   return "zapnuti napajeni";
+    case ESP_RST_EXT:       return "externi reset (tlacitko)";
+    case ESP_RST_SW:        return "softwarovy restart (napr. po OTA)";
+    case ESP_RST_PANIC:     return "PANIC - vyjimka v programu";
+    case ESP_RST_INT_WDT:   return "WATCHDOG (preruseni)";
+    case ESP_RST_TASK_WDT:  return "WATCHDOG (zaseknuta smycka)";
+    case ESP_RST_WDT:       return "WATCHDOG (jiny)";
+    case ESP_RST_DEEPSLEEP: return "probuzeni z deep sleep";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT - podpeti napajeni";
+    case ESP_RST_SDIO:      return "SDIO";
+    default:                return "neznamy";
+  }
+}
+
+// NOTE: there is deliberately NO clock in this firmware. Nothing needs one:
+// the HH:MM under each weather frame is derived from that frame's own name
+// (CHMU.cpp), the "nyni / -X min" label from the frame's position in the
+// animation, and every HTTPS connection uses setInsecure(), so no certificate
+// validity is checked either. NTP was dropped in 0.5.3 - if a wall clock is
+// ever added to the UI, put configTzTime() back here.
+//
+// The time ZONE still has to be set up though. CHMU.cpp converts each frame's
+// UTC timestamp with localtime_r(), and without TZ in the environment that
+// would quietly hand back UTC - the labels would be an hour or two out. This
+// used to be a side effect of configTzTime(); now it is done explicitly.
+static void applyTimezone() {
+  setenv("TZ", TZ_INFO, 1);
+  tzset();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
   Serial.printf("\n=== MeteoPlaneRadar v%s ===\n", FW_VERSION);
+  // Why the board came up. Invaluable in a bug report: a panic or a watchdog
+  // reset means something crashed, a brownout points at the power supply.
+  Serial.printf("Duvod restartu: %s\n", resetReasonText());
+  Serial.printf("Volna pamet: %u B\n", (unsigned)ESP.getFreeHeap());
 
   Settings_Begin();
+  applyTimezone();   // needed for the weather frame labels, not for a clock
 
   Wire.begin(I2C_SDA, I2C_SCL, 400000);
   delay(50);
@@ -210,8 +248,17 @@ void setup() {
   delay(10);
 
   Backlight_Init();
-  Set_Backlight(Settings_Backlight());
-  ST7701_Init();
+  // Backlight stays off for now. The panel powers up with random memory
+  // content, so lighting it before the first frame is drawn shows a white
+  // flash. Set_Backlight() comes right after the first flush() below.
+  if (!ST7701_Init()) {
+    // Nothing can be drawn from here on, so the serial log is the only way out.
+    // Keep restarting rather than sitting on a black screen forever: a transient
+    // failure then fixes itself, and a permanent one at least says why.
+    Serial.println("Displej se nepodarilo inicializovat, restartuji za 5 s");
+    delay(5000);
+    ESP.restart();
+  }
 
   // Single PSRAM canvas (anti-flicker). All drawing goes here; flush() pushes
   // the whole frame to the panel in one draw_bitmap.
@@ -230,8 +277,13 @@ void setup() {
   gfx->setTextWrap(false);
   gfx->fillScreen(C_BLACK);
   gfx->flush();
+  Set_Backlight(Settings_Backlight());   // now there is something to look at
 
-  Touch_Init();
+  if (!Touch_Init()) {
+    // Not fatal - the radar keeps running, it just cannot be operated. Worth
+    // knowing about, because from the outside it looks like a frozen board.
+    Serial.println("VAROVANI: dotyk se neinicializoval, ovladani nebude fungovat");
+  }
 
   checkBootReset();
 
@@ -241,7 +293,6 @@ void setup() {
   WiFi_ConnectOrPortal();
 
   if (WiFi_IsConnected()) {
-    configTzTime(TZ_INFO, "pool.ntp.org");
     GeoIP_DetectIfNeeded();   // fill in the location by IP if the user did not set one
   }
 
@@ -255,10 +306,18 @@ void setup() {
 
 void loop() {
   // --- Touch: swipe (range) vs short tap (detail) vs long press (switch) ---
+  //
+  // The gesture does NOT end on the first empty sample. The CST820 skips a
+  // sample now and then, and Touch_Read() also throws away corrupted ones - so
+  // an empty sample in the middle of a drag is normal, not a lifted finger.
+  // Ending the gesture there would split one swipe into several short taps,
+  // each of which would be taken for a tap on the map. Wait for
+  // TOUCH_RELEASE_MS of continuous silence instead.
   static bool touching = false;
   static int  startX = 0, startY = 0;
   static int  lastX = 0, lastY = 0;
   static unsigned long startMs = 0;
+  static unsigned long lastSeenMs = 0;   // last sample with a finger on it
 
   TouchData t;
   Touch_Read(&t);
@@ -269,11 +328,12 @@ void loop() {
       startX = t.x; startY = t.y; startMs = millis();
     }
     lastX = t.x; lastY = t.y;        // last valid position
-  } else if (touching) {             // touch ends -> evaluate the gesture
-    touching = false;
+    lastSeenMs = millis();
+  } else if (touching && millis() - lastSeenMs >= TOUCH_RELEASE_MS) {
+    touching = false;                // finger really is up -> evaluate
     int dx = lastX - startX;
     int dy = lastY - startY;
-    unsigned long dur = millis() - startMs;
+    unsigned long dur = lastSeenMs - startMs;   // to the last real sample
     bool smallMove = (abs(dx) < 60 && abs(dy) < 60);
 
 #if TOUCH_DEBUG
@@ -311,9 +371,6 @@ void loop() {
     Watchdog_Suspend();                    // the portal blocks - stop watching
     WiFi_StartPortal();                    // blocking - draws its own AP screen
     Watchdog_Resume();
-    if (WiFi_IsConnected()) {
-      configTzTime(TZ_INFO, "pool.ntp.org");
-    }
     enterActive();                         // redraw once it returns
   }
 

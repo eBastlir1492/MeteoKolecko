@@ -69,7 +69,7 @@ bool WiFi_ConnectOrPortal() {
   snprintf(lonBuf, sizeof(lonBuf), "%.5f", Settings_Lon());
 
   WiFiManager wm;
-  wm.setConfigPortalTimeout(180);
+  wm.setConfigPortalTimeout(PORTAL_TIMEOUT_S);
   wm.setConnectTimeout(20);
   wm.setAPCallback(onAP);
 
@@ -95,7 +95,7 @@ void WiFi_StartPortal() {
   snprintf(lonBuf, sizeof(lonBuf), "%.5f", Settings_Lon());
 
   WiFiManager wm;
-  wm.setConfigPortalTimeout(180);
+  wm.setConfigPortalTimeout(PORTAL_TIMEOUT_S);
   wm.setAPCallback(onAP);
   // Menu with an "Exit" button - lets you leave the portal without connecting/resetting.
   const char* menu[] = {"wifi", "info", "exit"};

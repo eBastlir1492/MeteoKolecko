@@ -58,9 +58,13 @@ void Settings_SetLocation(double lat, double lon) {
 
 uint8_t Settings_Backlight() { return s_bl; }
 
+// Brightness goes through the same debounce as the rest of the UI state.
+// Dragging the slider across the screen used to write flash on every single
+// touch sample - dozens of erase/write cycles for one adjustment.
 void Settings_SetBacklight(uint8_t pct) {
+  if (pct == s_bl) return;
   s_bl = pct;
-  if (prefs.begin(NS, false)) { prefs.putUChar("bl", pct); prefs.end(); }
+  s_uiDirty = true; s_uiDirtyAt = millis();
 }
 
 bool Settings_MetricUnits() { return s_metric; }
@@ -90,7 +94,8 @@ void    Settings_SetScreen(uint8_t idx) {
 }
 
 // Debounced flush: write only after the UI has been idle for a moment, so a
-// burst of swipes results in a single NVS write instead of one per step.
+// burst of swipes (or a drag across the brightness slider) results in a single
+// NVS write instead of one per step.
 void Settings_Tick() {
   if (!s_uiDirty) return;
   if (millis() - s_uiDirtyAt < 2000) return;
@@ -99,6 +104,7 @@ void Settings_Tick() {
     prefs.putUChar("rngM", s_rngM);
     prefs.putUChar("scr",  s_scr);
     prefs.putUShort("topb", s_top);
+    prefs.putUChar("bl",   s_bl);
     prefs.end();
   }
   s_uiDirty = false;

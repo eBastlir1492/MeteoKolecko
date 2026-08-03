@@ -133,7 +133,7 @@ static void ST7701_SendInit() {
   ST7701_CS_Dis();
 }
 
-void ST7701_Init() {
+bool ST7701_Init() {
   ST7701_Reset();
 
   // SPI bus for the init sequence (no CS - that is handled via EXIO3).
@@ -144,7 +144,11 @@ void ST7701_Init() {
   buscfg.quadwp_io_num = -1;
   buscfg.quadhd_io_num = -1;
   buscfg.max_transfer_sz = 64;
-  spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+  esp_err_t err = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+  if (err != ESP_OK) {
+    Serial.printf("FATAL: spi_bus_initialize selhalo (0x%x)\n", err);
+    return false;
+  }
 
   spi_device_interface_config_t devcfg = {};
   devcfg.command_bits = 1;
@@ -153,7 +157,11 @@ void ST7701_Init() {
   devcfg.clock_speed_hz = 40 * 1000 * 1000;
   devcfg.spics_io_num = -1;
   devcfg.queue_size = 1;
-  spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi);
+  err = spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi);
+  if (err != ESP_OK) {
+    Serial.printf("FATAL: spi_bus_add_device selhalo (0x%x)\n", err);
+    return false;
+  }
 
   ST7701_SendInit();
 
@@ -206,7 +214,17 @@ void ST7701_Init() {
   // NOTE: with bounce buffers the driver switches framebuffers via bb_fb_index
   // at the start of a frame, so handing over a framebuffer still works.
 
-  esp_lcd_new_rgb_panel(&rgb, &panel_handle);
+  // The usual reason this fails is that PSRAM is not set to OPI in the IDE:
+  // two 460 kB framebuffers simply do not fit anywhere else. Without this check
+  // panel_handle stays NULL and the first draw_bitmap takes the board down with
+  // an unhelpful backtrace, so say it out loud instead.
+  err = esp_lcd_new_rgb_panel(&rgb, &panel_handle);
+  if (err != ESP_OK || !panel_handle) {
+    panel_handle = nullptr;
+    Serial.printf("FATAL: esp_lcd_new_rgb_panel selhalo (0x%x) - je PSRAM v IDE "
+                  "nastavena na OPI PSRAM?\n", err);
+    return false;
+  }
   esp_lcd_panel_reset(panel_handle);
   esp_lcd_panel_init(panel_handle);
 
@@ -216,6 +234,7 @@ void ST7701_Init() {
   esp_lcd_rgb_panel_event_callbacks_t cbs = {};
   cbs.on_vsync = lcd_on_vsync;
   esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL);
+  return true;
 }
 
 uint16_t* LCD_FrameBuffer(int idx) {
@@ -226,11 +245,13 @@ uint16_t* LCD_FrameBuffer(int idx) {
 }
 
 void LCD_DrawBitmap(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t* color) {
+  if (!panel_handle) return;
   // esp_lcd treats x_end/y_end as exclusive, hence the +1.
   esp_lcd_panel_draw_bitmap(panel_handle, x1, y1, x2 + 1, y2 + 1, color);
 }
 
 void LCD_Flush(const uint16_t* fb) {
+  if (!panel_handle || !fb) return;   // panel init failed - nothing to draw on
   // With two framebuffers the driver recognises one of its own buffers, skips
   // the copy entirely and only repoints the DMA (verified in the IDF source:
   // draw_bitmap sets do_copy = false when the pointer matches a framebuffer).

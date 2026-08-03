@@ -64,7 +64,7 @@
 extern esp_lcd_panel_handle_t panel_handle;
 
 // Initialise the ST7701 (reset, SPI init sequence, RGB panel). Call after TCA9554_Init.
-void ST7701_Init();
+bool ST7701_Init();   // false = panel could not be brought up (see serial log)
 
 // Blit a colour rectangle straight to the panel (x2/y2 inclusive).
 void LCD_DrawBitmap(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t* color);

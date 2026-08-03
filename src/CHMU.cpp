@@ -7,6 +7,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include "esp_heap_caps.h"
+#include "Config.h"
 
 static const char* NAME_PREFIX = "pacz2gmaps3.z_max3d.";
 
@@ -30,26 +31,59 @@ static String extractTimestamp(const String& name) {
   return date + hhmm;   // YYYYMMDDHHMM
 }
 
+// Days since 1970-01-01 for a civil (proleptic Gregorian) date. Hinnant's
+// days_from_civil - exact, no loops, no library date support needed.
+static long daysFromCivil(int y, unsigned m, unsigned d) {
+  y -= m <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = (unsigned)(y - era * 400);
+  const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return (long)era * 146097 + (long)doe - 719468;
+}
+
+// The name carries a UTC timestamp; the label wants local time. The conversion
+// deliberately does NOT look at the current clock - it turns the frame's own
+// date into an epoch and lets the TZ rules decide CET or CEST for THAT date.
+// Reading "now" instead used to put the labels an hour out whenever NTP had not
+// answered yet, because the unset clock sits in January (CET) while the frame
+// is from summer (CEST).
 static String timeTextFromName(const String& name) {
   String ts = extractTimestamp(name);
   if (ts.length() < 12) return "";
+  int Y  = ts.substring(0, 4).toInt();
+  int Mo = ts.substring(4, 6).toInt();
+  int D  = ts.substring(6, 8).toInt();
   int hh = ts.substring(8, 10).toInt();
   int mm = ts.substring(10, 12).toInt();
-  time_t now = time(nullptr);
-  struct tm lt; localtime_r(&now, &lt);
-  struct tm gt; gmtime_r(&now, &gt);
-  int off = lt.tm_hour - gt.tm_hour;
-  if (off < -12) off += 24; if (off > 12) off -= 24;
-  hh = (hh + off + 24) % 24;
+  if (Y < 2000 || Mo < 1 || Mo > 12 || D < 1 || D > 31) return "";
+
+  time_t utc = (time_t)daysFromCivil(Y, (unsigned)Mo, (unsigned)D) * 86400L
+             + (long)hh * 3600L + (long)mm * 60L;
+  struct tm lt;
+  localtime_r(&utc, &lt);
   char out[6];
-  snprintf(out, sizeof(out), "%02d:%02d", hh, mm);
+  snprintf(out, sizeof(out), "%02d:%02d", lt.tm_hour, lt.tm_min);
   return String(out);
+}
+
+// A TLS handshake allocates roughly 45 kB of INTERNAL RAM (PSRAM cannot be used
+// for it). When that allocation fails, mbedTLS reports it as a plain "HTTP -1"
+// with no hint of the real cause. Checking first turns a mystery into a log
+// line, and skipping the poll leaves the previous data on screen.
+static bool netHeapOk(const char* what) {
+  size_t freeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (freeInt >= NET_MIN_HEAP) return true;
+  Serial.printf("%s: malo volne pameti (%u B < %u B), stahovani preskoceno\n",
+                what, (unsigned)freeInt, (unsigned)NET_MIN_HEAP);
+  return false;
 }
 
 // Stahne dany PNG do zadaneho bufferu. Vraci true a naplni *outSize.
 static bool downloadNameTo(const String& name, uint8_t* buf, size_t cap, size_t* outSize) {
   *outSize = 0;
   if (!buf) return false;
+  if (!netHeapOk("CHMU")) return false;
   String url = String(CHMU_INDEX_URL) + name;
   WiFiClientSecure client; client.setInsecure();
   HTTPClient http; http.setTimeout(15000);
@@ -102,6 +136,7 @@ static void scanChunkLatest(const String& text, String& newestTs, String& latest
 
 bool CHMU_FetchLatest() {
   if (WiFi.status() != WL_CONNECTED) return s_hasSnapshot;
+  if (!netHeapOk("CHMU")) return s_hasSnapshot;
   WiFiClientSecure client; client.setInsecure();
   HTTPClient http; http.setTimeout(15000);
   if (!http.begin(client, CHMU_INDEX_URL)) return s_hasSnapshot;
@@ -186,6 +221,7 @@ int CHMU_FetchAnim(int wantN) {
   if (wantN < 1) wantN = 1;
 
   // 1) projdi index a najdi N nejnovejsich nazvu
+  if (!netHeapOk("CHMU")) return s_animCount;
   s_topCount = 0;
   WiFiClientSecure client; client.setInsecure();
   HTTPClient http; http.setTimeout(15000);

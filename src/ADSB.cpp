@@ -149,9 +149,22 @@ static void buildFilter(JsonDocument& filter) {
   o["type"]         = true;
 }
 
+// A TLS handshake allocates roughly 45 kB of INTERNAL RAM (PSRAM cannot be used
+// for it). When that allocation fails, mbedTLS reports it as a plain "HTTP -1"
+// with no hint of the real cause. Checking first turns a mystery into a log
+// line, and skipping the poll leaves the previous data on screen.
+static bool netHeapOk(const char* what) {
+  size_t freeInt = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (freeInt >= NET_MIN_HEAP) return true;
+  Serial.printf("%s: malo volne pameti (%u B < %u B), stahovani preskoceno\n",
+                what, (unsigned)freeInt, (unsigned)NET_MIN_HEAP);
+  return false;
+}
+
 bool ADSB_Fetch(double lat, double lon, float radiusKm) {
   // No link -> keep whatever we last drew (do NOT blank the radar).
   if (WiFi.status() != WL_CONNECTED) { Serial.println("ADSB: no WiFi"); return false; }
+  if (!netHeapOk("ADSB")) return false;
 
   float distNm = radiusKm / KM_PER_NM;
   char url[128];
