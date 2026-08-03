@@ -11,6 +11,59 @@ pohromadě v `src/Config.h`.
 
 ---
 
+## [0.5.3]
+
+### Opraveno
+- **Gesto už nekončí na prvním prázdném vzorku.** CST820 běžně vynechá vzorek
+  uprostřed tahu a od verze 0.5.1 se navíc zahazují vadná čtení — obojí se
+  tvářilo jako zvednutí prstu. Jeden swipe se tak rozpadl na několik krátkých
+  klepnutí, která pak zavírala detail letadla nebo klepala do mapy. Nově se
+  vyžaduje `TOUCH_RELEASE_MS` (60 ms) souvislého ticha. Ověřeno simulací:
+  swipe s výpadkem 20 ms dřív dal *dvě klepnutí a žádný swipe*, teď jeden swipe.
+- **Čas u snímků meteoradaru byl v létě o hodinu vedle.** Posun UTC → místní čas
+  se počítal z *aktuálních* hodin. Dokud nedorazila odpověď z NTP, ležely
+  v roce 1970, tedy v lednu, takže se použil CET místo CEST. Nově se posun
+  odvozuje z data *toho snímku* (název souboru nese `YYYYMMDDHHMM` v UTC), takže
+  vychází správně nezávisle na hodinách — včetně nocí, kdy se přechází mezi
+  letním a zimním časem. Popisek „nyni / −X min" se počítá z pořadí snímku
+  a nebyl ovlivněn nikdy.
+- **Jas se zapisoval do flash při každém pohybu slideru.** Přetažení přes celou
+  šířku znamenalo desítky zápisů do NVS. Nově prochází stejným odloženým
+  zápisem (~2 s klidu) jako rozsah a orientace.
+- **Bílý záblesk při startu.** Podsvícení se rozsvěcelo dřív, než byl vykreslen
+  první snímek, takže bylo vidět náhodný obsah paměti panelu. Rozsvítí se až za
+  prvním `flush()`.
+
+### Přidáno
+- **Zotavení dotykového řadiče.** Po `TOUCH_REINIT_BAD` (40) vadných čteních za
+  sebou se CST820 resetuje. Dřív po zámrzu I2C přestal dotyk fungovat až do
+  odpojení napájení.
+- **Kontrola volné paměti před TLS.** Handshake potřebuje ~45 kB *interní* RAM;
+  když chybí, mbedTLS to hlásí jen jako `HTTP -1`. Nově se poll přeskočí
+  a důvod se vypíše (`NET_MIN_HEAP`).
+- **Ošetření selhání displeje.** `ST7701_Init()` vrací `bool` a kontroluje
+  návratové kódy SPI i `esp_lcd_new_rgb_panel` — nejčastější příčina (PSRAM
+  není v IDE nastavená na OPI) se teď vypíše místo černé obrazovky bez stopy.
+  `LCD_Flush()` a `LCD_DrawBitmap()` navíc nesáhnou na neinicializovaný panel.
+- **Důvod restartu a volná paměť v sériovém výpisu** při startu — panic,
+  watchdog a brownout jsou v hlášení chyb rozlišitelné na první pohled.
+- Timeout konfiguračního portálu je nově v `Config.h` (`PORTAL_TIMEOUT_S`).
+
+### Odebráno
+- **NTP klient a systémový čas.** Po opravě časů výše je nepotřebuje nic:
+  popisek HH:MM se odvozuje z názvu snímku, „nyni / −X min" z jeho pořadí
+  v animaci a všechna HTTPS spojení jedou přes `setInsecure()`, takže se
+  neověřuje ani platnost certifikátů. Zmizelo čekání při startu i varování
+  „NTP neodpovedel". Kdyby na displeji někdy přibyly hodiny, vrátí se
+  `configTzTime()` zpátky nad `setup()`.
+- Konstanty `NTP_SERVER`, `NTP_WAIT_MS` a `NTP_RETRY_MS` z `Config.h`.
+
+### Změněno
+- **Časová zóna se nastavuje explicitně** (`setenv("TZ", ...)` + `tzset()`
+  v `setup()`). Dřív to byl vedlejší efekt `configTzTime()`; bez něj by
+  `localtime_r()` v `CHMU.cpp` tiše vracelo UTC a popisky by byly o hodinu
+  nebo dvě vedle. `TZ_INFO` v `Config.h` proto zůstává.
+
 ## [0.5.2]
 
 ### Změněno

@@ -53,12 +53,9 @@ Stačí tahle jedna deska a USB‑C kabel. Nic se nepájí ani nedrátuje.
 - **Nastavení** — jas, WiFi (captive portál s QR kódem), poloha, orientace
   mapy, zobrazení aktuální verze firmwaru a tlačítko pro bezdrátovou
   aktualizaci.
-- **Orientace podle výhledu** — v Nastavení řádek `Nahore` s tlačítky `−` / `+`
-  určuje, **který světový směr je nahoře na displeji**. Nastavíte směr, kterým
-  se díváte z okna (`S`, `SV`, `V`, …), a letadla na displeji jsou ve stejném
-  směru jako ta za sklem. Osm poloh po 45°, vedle tlačítek je kompasový náhled
-  a po obvodu radaru značky S/V/J/Z. Meteoradar se záměrně neotáčí — srážková
-  mapa se čte severem nahoru.
+- **Orientace podle výhledu** — nastavíte, **který světový směr je nahoře na
+  displeji** (`S`, `SV`, `V`, …), a letadla na displeji jsou ve stejném směru
+  jako ta za oknem. Osm poloh po 45°. Podrobnosti níže v [Ovládání](#ovládání).
 - **Aktualizace přes WiFi (OTA)** — nový firmware nahrajete z prohlížeče bez
   USB kabelu.
 - **Pamatuje si stav** — poslední zvolený rozsah (zvlášť pro letadla a
@@ -66,7 +63,8 @@ Stačí tahle jedna deska a USB‑C kabel. Nic se nepájí ani nedrátuje.
   jste skončili.
 - **Bez blikání pixelů** — celý snímek se kreslí do jednoho bufferu v PSRAM a
   na panel se posílá jedním přenosem synchronizovaným s VSYNC.
-- **Provoz 24/7** — hardwarový watchdog.
+- **Provoz 24/7** — hardwarový watchdog, zotavení dotykového řadiče po zámrzu
+  I2C a kontrola volné paměti před každým stahováním.
 
 ## Ovládání
 
@@ -81,6 +79,31 @@ Ovládá se gesty na dotykovém displeji:
 | **Držení BOOT při startu (~3 s)** | tovární reset (WiFi + nastavení) |
 
 Obrazovky jsou tři: **Letadla → Meteoradar → Nastavení** (dokola).
+
+### Orientace mapy (Nastavení → `Nahore`)
+
+Řádek `Nahore` s tlačítky `−` / `+` říká, **který světový směr je nahoře na
+displeji**. Nastavte směr, kterým se díváte z okna — letadlo, které vidíte
+vlevo nad střechou, bude vlevo nad středem i na displeji.
+
+| `Nahore` | Nahoře je | Sever pak leží |
+|---|---|---|
+| `S` | sever | nahoře (výchozí) |
+| `V` | východ | vlevo |
+| `J` | jih | dole |
+| `Z` | západ | vpravo |
+
+Mezistupně (`SV`, `JV`, `JZ`, `SZ`) jsou po 45°, `+` jde po směru hodinových
+ručiček. Vedle tlačítek je kompasový náhled, po obvodu radaru značky S/V/J/Z.
+Nastavení přežije restart. Krok se dá změnit přes `MAP_ROT_STEP_DEG`
+v `src/Config.h`, musí ale dělit 90 — jinak přestane být dosažitelný přesný
+východ a západ.
+
+**Meteoradar se záměrně neotáčí** — srážková mapa se čte severem nahoru a
+orientaci v ní drží obrys ČR.
+
+> Aktualizujete‑li z verze 0.5.1 nebo starší, kde se zadávalo „o kolik mapu
+> otočit", orientace se vrátí na sever nahoře. Nastavte si ji prosím znovu.
 
 Při prvním zapnutí (nebo po resetu) vytvoří zařízení WiFi síť
 **`MeteoPlaneRadar`** — připojte se (na displeji je i QR kód) a zadejte údaje
@@ -165,12 +188,20 @@ Otevřete Sériový monitor (v Arduino IDE, nebo libovolný terminál) a nastavt
 rychlost **115200 Bd**. Po startu uvidíte například:
 
 ```
-=== MeteoPlaneRadar v0.5.1 ===
+=== MeteoPlaneRadar v0.5.3 ===
+Duvod restartu: zapnuti napajeni
+Volna pamet: 218432 B
 Displej: dvojity framebuffer, kresleni bez kopirovani
+CST820 ID: 0xB5
 WiFi ok, IP 192.168.1.42
 ADSB: 12 aircraft (8421 bytes)
 Meteoradar: 6 ramcu
 ```
+
+První dva řádky jsou v hlášení chyb nejcennější. **Duvod restartu** rozliší
+běžné zapnutí od pádu (`PANIC`), zaseknuté smyčky (`WATCHDOG`) nebo slabého
+zdroje (`BROWNOUT`). **Volna pamet** je volná interní RAM — když klesne pod
+~60 kB, přeskočí se stahování a v logu se objeví `malo volne pameti`.
 
 Podrobnější ladicí výpisy (gesta dotyku, důvody zavření detailu letadla, doba
 překreslení) se zapínají v `src/Config.h` přepínači `TOUCH_DEBUG` a
