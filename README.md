@@ -119,7 +119,7 @@ funguje vždy.
 | | Full programming | OTA (přes WiFi) |
 |---|---|---|
 | Čím | prohlížeč + USB‑C kabel | jen prohlížeč, bezdrátově |
-| Soubor | `MeteoPlaneRadar_v0.4.ino.merged.bin` | `MeteoPlaneRadar_v0.4.ino.bin` |
+| Soubor | `MeteoPlaneRadar_v0.X.Y.ino.merged.bin` | `MeteoPlaneRadar_v0.X.Y.ino.bin` |
 | Kdy | první nahrání, přechod z verze nižší než 0.4, záchrana | běžná aktualizace z verze 0.4 a vyšší |
 
 > ### ⚠️ Máte verzi starší než 0.4 (nebo nevíte jakou)?
@@ -135,7 +135,7 @@ funguje vždy.
 Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně nové desce.
 
 1. Stáhněte si z [**Releases**](../../releases) soubor
-   **`MeteoPlaneRadar_v0.4.ino.merged.bin`** (ten s `merged`).
+   **`MeteoPlaneRadar_v0.X.Y.ino.merged.bin`** (ten s `merged`).
 2. Připojte desku k počítači USB‑C kabelem — do konektoru označeného **USB**
    (viz poznámka o konektorech níže).
 3. Otevřete **[esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz)**
@@ -149,7 +149,7 @@ Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně 
 Od verze 0.4 můžete nový firmware nahrát bezdrátově, přímo ze zařízení.
 
 1. Stáhněte si z [**Releases**](../../releases) soubor
-   **`MeteoPlaneRadar_v0.4.ino.bin`** — pozor, **ten bez `merged`**.
+   **`MeteoPlaneRadar_v0.X.Y.ino.bin`** — pozor, **ten bez `merged`**.
 2. V zařízení jděte do **Nastavení** a klepněte na **Firmware update**.
 3. Zařízení vytvoří WiFi síť **`MeteoPlaneRadar`** (bez hesla) a ukáže QR kód.
    Připojte se k ní telefonem nebo notebookem.
