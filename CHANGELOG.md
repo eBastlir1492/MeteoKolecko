@@ -11,6 +11,24 @@ pohromadě v `src/Config.h`.
 
 ---
 
+## [0.5.4]
+
+### Opraveno
+- **Displeji po chvíli zčernal obraz a pomohl jen restart.** Podsvícení přitom
+  svítilo dál a deska běžela normálně. Na vině byla automatická obnova
+  dotykového řadiče přidaná v 0.5.3: za zaseknutý řadič považovala i to, když
+  čip jen usne a přestane odpovídat, což je jeho běžné chování. Resetovala ho
+  proto pořád dokola — a protože reset vede přes obvod, který drží i napájení
+  displeje, dřív nebo později jeden zápis skončil špatně a panel zhasl.
+  Obnova je nově vypnutá (`TOUCH_RECOVERY 0` v `Config.h`).
+
+### Přidáno
+- **Hlídač displeje.** Sleduje, jestli panel opravdu vykresluje snímky. Když se
+  zastaví, zkusí ho oživit, a pokud se to nepovede, deska se sama restartuje —
+  místo aby zůstala černá až do odpojení napájení.
+- **Hlídač I/O expandéru.** Průběžně kontroluje, že obvod držící napájení
+  a reset displeje má nastavené to, co má, a případný rozdíl opraví.
+
 ## [0.5.3]
 
 ### Opraveno

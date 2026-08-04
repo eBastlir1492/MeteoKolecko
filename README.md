@@ -134,8 +134,8 @@ funguje vždy.
 
 Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně nové desce.
 
-1. Stáhněte si poslední verzi BIN z [**Releases**](../../releases) soubor
-   **`MeteoPlaneRadar_v0.X.ino.merged.bin`** (ten s `merged`).
+1. Stáhněte si z [**Releases**](../../releases) soubor
+   **`MeteoPlaneRadar_v0.4.ino.merged.bin`** (ten s `merged`).
 2. Připojte desku k počítači USB‑C kabelem — do konektoru označeného **USB**
    (viz poznámka o konektorech níže).
 3. Otevřete **[esp32flasher.chiptron.cz](https://esp32flasher.chiptron.cz)**
@@ -148,8 +148,8 @@ Nahraje celou paměť včetně jejího rozdělení. Funguje vždy, i na úplně 
 
 Od verze 0.4 můžete nový firmware nahrát bezdrátově, přímo ze zařízení.
 
-1. Stáhněte si poslední verzi BIN z [**Releases**](../../releases) soubor
-   **`MeteoPlaneRadar_v0.X.ino.bin`** — pozor, **ten bez `merged`**.
+1. Stáhněte si z [**Releases**](../../releases) soubor
+   **`MeteoPlaneRadar_v0.4.ino.bin`** — pozor, **ten bez `merged`**.
 2. V zařízení jděte do **Nastavení** a klepněte na **Firmware update**.
 3. Zařízení vytvoří WiFi síť **`MeteoPlaneRadar`** (bez hesla) a ukáže QR kód.
    Připojte se k ní telefonem nebo notebookem.
@@ -188,7 +188,7 @@ Otevřete Sériový monitor (v Arduino IDE, nebo libovolný terminál) a nastavt
 rychlost **115200 Bd**. Po startu uvidíte například:
 
 ```
-=== MeteoPlaneRadar v0.5.3 ===
+=== MeteoPlaneRadar v0.5.4 ===
 Duvod restartu: zapnuti napajeni
 Volna pamet: 218432 B
 Displej: dvojity framebuffer, kresleni bez kopirovani
