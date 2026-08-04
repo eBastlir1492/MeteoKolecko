@@ -22,14 +22,24 @@ static spi_device_handle_t s_spi = NULL;
 // full-frame copy always starts at the top of a frame (see LCD_Flush).
 static SemaphoreHandle_t s_vsyncSem = NULL;
 
+// Frames actually scanned out by the panel. This is the only honest proof that
+// the display is still alive: it is incremented by the panel's own interrupt,
+// so it keeps rising even if the sketch draws nothing, and it stops dead the
+// moment the RGB peripheral gives up - which is exactly the failure we are
+// after (lit backlight, black picture, sketch running happily).
+static volatile uint32_t s_vsyncCount = 0;
+
 static bool IRAM_ATTR lcd_on_vsync(esp_lcd_panel_handle_t panel,
                                    const esp_lcd_rgb_panel_event_data_t* edata,
                                    void* user_ctx) {
   (void)panel; (void)edata; (void)user_ctx;
+  s_vsyncCount++;
   BaseType_t hp = pdFALSE;
   if (s_vsyncSem) xSemaphoreGiveFromISR(s_vsyncSem, &hp);
   return hp == pdTRUE;
 }
+
+uint32_t LCD_VsyncCount() { return s_vsyncCount; }
 
 // --- ST7701 command/data over SPI (command_bits=1, address_bits=8) ---
 static void ST7701_Cmd(uint8_t cmd) {

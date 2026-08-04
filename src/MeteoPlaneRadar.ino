@@ -304,6 +304,52 @@ void setup() {
   Serial.println("Setup done");
 }
 
+// --- Display watchdog -------------------------------------------------------
+// The task watchdog cannot see this failure: the sketch is fine, it is the RGB
+// peripheral that stops scanning (black screen, backlight still on, only a
+// power cycle helps). So watch the frame counter fed by the VSYNC interrupt.
+// First try to repair - the most likely cause is the I/O expander having lost
+// the display's reset or power line - and if the panel still does not come
+// back, reboot instead of leaving a black brick on the shelf.
+static void displayWatchdog() {
+#if DISPLAY_WD
+  static uint32_t lastCount = 0;
+  static unsigned long lastMove = 0;
+  static bool repaired = false;
+  static bool armed = false;        // see below
+
+  uint32_t now = LCD_VsyncCount();
+  unsigned long ms = millis();
+  if (now != lastCount) {           // panel is scanning - all good
+    lastCount = now;
+    lastMove = ms;
+    repaired = false;
+    // Arm only once the counter has demonstrably been moving. If a future board
+    // or driver version never delivered the VSYNC event at all, an always-armed
+    // watchdog would reboot a perfectly healthy device every few seconds - far
+    // worse than the fault it is meant to catch.
+    if (!armed && now > 100) armed = true;
+    return;
+  }
+  if (!armed) return;               // never seen a frame - do not judge
+  if (lastMove == 0) { lastMove = ms; return; }
+
+  unsigned long stalled = ms - lastMove;
+  if (!repaired && stalled >= DISPLAY_WD_DEAD_MS) {
+    repaired = true;
+    Serial.printf("DISPLEJ: zadny snimek %lu ms, zkousim opravu\n", stalled);
+    TCA9554_Verify();                       // expander back to known state
+    TCA9554_SetPin(EXIO_LCD_PWR, false);    // power on (active low)
+    TCA9554_SetPin(EXIO_LCD_RST, true);     // release reset
+    Set_Backlight(Settings_Backlight());
+  } else if (stalled >= DISPLAY_WD_REBOOT_MS) {
+    Serial.printf("DISPLEJ: panel neobnoven po %lu ms, restartuji\n", stalled);
+    Serial.flush();
+    ESP.restart();
+  }
+#endif
+}
+
 void loop() {
   // --- Touch: swipe (range) vs short tap (detail) vs long press (switch) ---
   //
@@ -392,6 +438,17 @@ void loop() {
     lastDraw = millis();
   }
 
+  // Cheap insurance for the display: one I2C read every few seconds that checks
+  // the expander still holds LCD power and reset where we left them, and puts
+  // them back if not. A single corrupted write there would otherwise blank the
+  // panel permanently without the sketch ever noticing.
+  static unsigned long lastExio = 0;
+  if (millis() - lastExio >= EXPANDER_CHECK_MS) {
+    lastExio = millis();
+    TCA9554_Verify();
+  }
+
+  displayWatchdog();
   Settings_Tick();   // debounced persist of range/screen to NVS
   Watchdog_Feed();
   delay(5);

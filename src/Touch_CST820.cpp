@@ -77,8 +77,29 @@ static void noteBadSample(const char* why) {
 static void recoverIfWedged() {
   if (s_badRun < TOUCH_REINIT_BAD) return;
   s_badRun = 0;
+#if TOUCH_RECOVERY
+  // Rate-limited on purpose - see the comment at TOUCH_RECOVERY in Config.h.
+  static unsigned long lastTry = 0;
+  static bool firstTry = true;
+  if (!firstTry && millis() - lastTry < TOUCH_RECOVERY_MIN_MS) return;
+  firstTry = false;
+  lastTry = millis();
   Serial.println("TOUCH: prilis mnoho vadnych cteni, resetuji radic");
   Touch_Init();
+  // The reset went through the expander that also holds the display's power
+  // and reset lines, and the bus was already misbehaving. Make sure we did not
+  // take the panel down with us.
+  TCA9554_Verify();
+#else
+  // Kept even in a release build - this is the one line that would tell us the
+  // wedged controller is a real thing and not just a theory. Rate-limited so it
+  // cannot flood the console on a permanently noisy bus.
+  static unsigned long lastMsg = 0;
+  if (lastMsg == 0 || millis() - lastMsg >= TOUCH_RECOVERY_MIN_MS) {
+    lastMsg = millis();
+    Serial.println("TOUCH: mnoho vadnych cteni (obnova radice je vypnuta)");
+  }
+#endif
 }
 
 void Touch_Read(TouchData* out) {

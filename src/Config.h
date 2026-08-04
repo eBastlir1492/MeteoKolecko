@@ -93,6 +93,50 @@
 // wedged (typically after an I2C glitch) and gets re-initialised.
 #define TOUCH_REINIT_BAD 40
 
+// 0 = never re-initialise the touch controller at runtime.
+//
+// Worth knowing what this costs: the reset line runs through the TCA9554, and
+// that same chip also holds the display's reset, chip-select and POWER. So the
+// recovery reaches for the expander exactly when the I2C bus is known to be
+// misbehaving - and a corrupted write there switches the panel off for good,
+// with the sketch still running (black screen, no watchdog, needs a power
+// cycle). Set this to 0 to rule the whole path out when diagnosing that.
+//
+// DEFAULT IS 0, deliberately. Users did report the black screen; nobody has
+// ever reported a wedged touch controller - that was a theoretical failure the
+// recovery was written for. Trading a real fault for a hypothetical one is a
+// bad deal. If the wedge ever does show up in a log, reset the chip some other
+// way than through the expander that holds the display's power line.
+#define TOUCH_RECOVERY 0
+
+// Never re-initialise more often than this. A wedged controller stays wedged,
+// so hammering it every few hundred milliseconds only multiplies the risk above.
+#define TOUCH_RECOVERY_MIN_MS 60000UL
+
+// How often to read the I/O expander back and repair it if it does not match
+// what we wrote (TCA9554_Verify). Cheap - one I2C register read.
+#define EXPANDER_CHECK_MS 5000UL
+
+// ---------------------------------------------------------------------------
+//  Display watchdog
+//
+//  Reports of a screen that goes black after anywhere from ten minutes to two
+//  hours, with the backlight still on and the board otherwise alive. The task
+//  watchdog cannot catch that: loop() keeps running, so it keeps being fed.
+//  This one watches the panel instead - the VSYNC interrupt counts frames, and
+//  if that count stops moving, the display is gone.
+// ---------------------------------------------------------------------------
+#define DISPLAY_WD 1              // 0 = do not watch the panel at all
+
+// No frame for this long = the panel is dead. One frame is ~34 ms, so anything
+// above a second is already far outside normal.
+#define DISPLAY_WD_DEAD_MS 3000UL
+
+// First a repair is attempted (put the expander back). If the panel is still
+// not scanning this long after that, reboot - the users are power-cycling the
+// board by hand anyway, this just does it for them.
+#define DISPLAY_WD_REBOOT_MS 8000UL
+
 // ---------------------------------------------------------------------------
 //  Network
 // ---------------------------------------------------------------------------

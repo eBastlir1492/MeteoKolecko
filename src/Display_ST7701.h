@@ -86,6 +86,12 @@ uint16_t* LCD_FrameBuffer(int idx);
 // pointer switch (zero copy); any other pointer is copied in as before.
 void LCD_Flush(const uint16_t* fb);
 
+// Frames scanned out since boot, counted in the panel's VSYNC interrupt. Used
+// by the display watchdog in the main sketch: at ~29 fps this must keep rising,
+// and if it stops while the sketch is still running, the RGB peripheral has
+// died and the screen is black with the backlight still on.
+uint32_t LCD_VsyncCount();
+
 // Backlight, 0-100.
 void Backlight_Init();
 void Set_Backlight(uint8_t light);

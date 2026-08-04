@@ -23,5 +23,12 @@
 #define EXIO_LCD_PWR   8
 
 void     TCA9554_Init();                       // all EXIO pins as outputs
-void     TCA9554_SetPin(uint8_t pin, bool high);
+bool     TCA9554_SetPin(uint8_t pin, bool high);   // false = the I2C write failed
 uint8_t  TCA9554_ReadOutput();
+
+// Reads the expander back and repairs it if it does not match what we last
+// wrote. This chip holds LCD reset, LCD chip-select and LCD POWER, so a single
+// corrupted I2C write here blanks the display for good while the sketch happily
+// carries on - no watchdog, no crash, nothing in the log. Call it periodically.
+// Returns false if a repair was needed (or the expander did not answer).
+bool     TCA9554_Verify();
