@@ -7,6 +7,8 @@ přístroji spojuje sledování letadel v okolí a animovanou srážkovou situac
 
 > Za vývojem stojí **[chiptron.cz](https://chiptron.cz)** a Claude AI.
 
+**Článek najdete na** https://chiptron.cz/meteoradar-a-radar-letadel-na-jednom-kulatem-displeji/
+
 ---
 
 ## Co to je
