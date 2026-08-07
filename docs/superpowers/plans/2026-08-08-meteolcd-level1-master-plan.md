@@ -25,6 +25,30 @@
 
 ---
 
+## Branch Contract
+
+| Phase | Required branch | Start point | Integration target |
+|---|---|---|---|
+| A | `feature/level1-phase-a` | verified `origin/main` | `main` |
+| B | `feature/level1-phase-b` | `main` after Phase A merge | `main` |
+| C | `feature/level1-phase-c` | `main` after Phase B merge | `main` |
+| D | `feature/level1-phase-d` | `main` after Phase C merge | `main` |
+| E | `feature/level1-phase-e` | `main` after Phase D merge | `main` |
+
+Never implement a phase task directly on `main`. Before every task run
+`git branch --show-current`, `git status --short`, and `git log -5 --oneline`.
+The branch name must match the phase row and the worktree must contain only
+the intentional in-progress task. A completed phase is merged with an
+explicit `--no-ff` merge only after its full verification gate passes.
+
+## Upstream Sync Contract
+
+`upstream` is fetch-only. Never merge `upstream/main` directly into an active
+Level 1 phase. Review a needed upstream change on
+`chore/sync-upstream-YYYYMMDD`, verify it against the display/touch/OTA
+invariants, and merge only that reviewed branch. Automatic upstream sync and
+force-push are forbidden.
+
 ## Autoritativní dokumenty
 
 1. [Level 1 design](../specs/2026-08-08-meteolcd-weather-only-design.md)
@@ -218,6 +242,11 @@ git log -8 --oneline
 7. Nikdy nepoužít `git reset --hard` ani `git checkout --` pro řešení přerušeného tasku.
 
 Commit messages jsou jedinečné a tvoří resume ledger. Pokud poslední commit odpovídá tasku, task je hotový; pokud ne, kontroluje se diff a testy.
+
+Before continuing any edit, identify the first incomplete phase plan and
+confirm that the current branch matches its required branch in the Branch
+Contract. If it does not match, stop editing and determine whether that phase
+has already been merged before proceeding.
 
 ## Pořadí provádění
 

@@ -10,6 +10,11 @@
 
 ## Global Constraints
 
+- **Required branch: `feature/level1-phase-a`**.
+- Before every task, verify the exact branch with `git branch --show-current`.
+- Never commit a phase task directly to `main` or to another phase branch.
+- If the branch is missing, create it only from the verified `main` start point
+  stated in the master Branch Contract and publish it with `git push -u origin`.
 - Přečíst master plán a Level 1 design před změnou.
 - Neměnit `Display_ST7701*`, `Canvas16.h`, `Touch_CST820*`, `TCA9554*` ani `partitions.csv` v této fázi.
 - Namespace NVS zůstává přesně `planeradar`.
@@ -438,3 +443,19 @@ git status --short
 ```
 
 Expected: empty status. Continue with Phase B only after all A tasks are committed and hardware smoke is recorded.
+
+## Phase Integration Gate
+
+1. Confirm every task checkbox in this phase is committed.
+2. Run the phase's complete verification command and read its full output.
+3. Confirm `git status --short` is empty and the current branch is the required
+   phase branch.
+4. Push the phase branch to `origin` and review the full `main...branch` diff.
+5. Switch to `main`, fast-forward it from `origin/main`, then merge the phase
+   with `git merge --no-ff feature/level1-phase-a`.
+6. Re-run the phase verification on the merge result.
+7. Push `main` normally, verify local and `origin/main` object IDs match, and
+   only then create the next phase branch from that `main`.
+
+Do not delete the phase branch until the merge commit and remote `main` have
+been verified. Never use force-push to repair a failed gate.

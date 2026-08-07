@@ -38,7 +38,7 @@
 - Consumes: five phase names and ordered plans in the Level 1 master plan.
 - Produces: exact required branch in every phase, start gate, per-task branch guard, phase integration gate and resume instructions understandable without this chat.
 
-- [ ] **Step 1: Run the static branch-contract test and verify it fails**
+- [x] **Step 1: Run the static branch-contract test and verify it fails**
 
 ```powershell
 $expected = [ordered]@{
@@ -67,7 +67,7 @@ if ($errors.Count -gt 0) { $errors; exit 1 }
 
 Expected: exit 1; každému fázovému plánu chybí nejméně jeden nový branch-contract prvek.
 
-- [ ] **Step 2: Add the master branch matrix and resume rule**
+- [x] **Step 2: Add the master branch matrix and resume rule**
 
 Do master plánu vložit tuto závaznou matici:
 
@@ -103,7 +103,7 @@ invariants, and merge only that reviewed branch. Automatic upstream sync and
 force-push are forbidden.
 ```
 
-- [ ] **Step 3: Add a self-contained branch guard to every phase plan**
+- [x] **Step 3: Add a self-contained branch guard to every phase plan**
 
 Za `## Global Constraints` každého fázového plánu přidat konkrétní branch řádek podle této přesné mapy:
 
@@ -147,7 +147,7 @@ been verified. Never use force-push to repair a failed gate.
 
 Přesné merge příkazy jsou `git merge --no-ff feature/level1-phase-a` až `git merge --no-ff feature/level1-phase-e` podle daného souboru. Obecné instrukční formulace z tohoto plánu se do fázových plánů nekopírují.
 
-- [ ] **Step 4: Re-run static and documentation verification**
+- [x] **Step 4: Re-run static and documentation verification**
 
 Spustit test ze Step 1; očekává se exit 0. Poté:
 
@@ -168,7 +168,7 @@ foreach ($branch in $requiredBranches) {
 
 Expected: oba příkazy exit 0, žádná nevyřešená šablona ani whitespace error.
 
-- [ ] **Step 5: Commit the Level 1 branch contract**
+- [x] **Step 5: Commit the Level 1 branch contract**
 
 Zaškrtnout Task 1 kroky v tomto plánu a commitnout:
 
