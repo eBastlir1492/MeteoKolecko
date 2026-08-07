@@ -221,6 +221,7 @@ Commit messages jsou jedinečné a tvoří resume ledger. Pokud poslední commit
 
 ## Pořadí provádění
 
+0. [Git publikace a zavedení branch contractu](./2026-08-08-meteokolecko-git-publish-plan.md)
 1. [Fáze A — baseline, test harness a weather-only migrace](./2026-08-08-meteolcd-phase-a-foundation-plan.md)
 2. [Fáze B — atomický datový tok ČHMÚ](./2026-08-08-meteolcd-phase-b-weather-data-plan.md)
 3. [Fáze C — renderer, mapa, města a LCD UI](./2026-08-08-meteolcd-phase-c-renderer-ui-plan.md)

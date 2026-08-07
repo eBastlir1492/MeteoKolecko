@@ -62,7 +62,7 @@ remote.pushDefault = origin
 5. Zakázat push URL upstreamu.
 6. Provést `git fetch --prune` zvlášť pro `origin` a `upstream`.
 7. Znovu ověřit, že `origin/main` je přesně `fcf0ced` a je předkem lokálního `main`.
-8. Zkontrolovat `git log --graph` a rozdíl `origin/main..main`; očekává se pouze `5b0ab25` a commit této workflow specifikace.
+8. Zkontrolovat `git log --graph` a rozdíl `origin/main..main`; očekávají se pouze schválené dokumentační commity vytvořené tímto procesem, počínaje `5b0ab25`. Jakákoli změna mimo `docs/` postup zastaví.
 9. Pushnout `main` běžným `git push -u origin main`.
 10. Ověřit shodu lokálního `main` a `origin/main` podle object ID.
 11. Porovnat lokální a vzdálené tagy a pushnout původní tagy pouze bez přepisování.
