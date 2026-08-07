@@ -29,7 +29,8 @@
 
 1. [Level 1 design](../specs/2026-08-08-meteolcd-weather-only-design.md)
 2. [Next Level roadmap](../specs/2026-08-08-meteolcd-next-level-roadmap.md)
-3. Tento master plán a pět fázových plánů níže.
+3. [Git a GitHub workflow](../specs/2026-08-08-meteokolecko-git-workflow-design.md)
+4. Tento master plán a pět fázových plánů níže.
 
 Nový agent bez kontextu chatu musí nejprve přečíst všechny tři výše uvedené položky a poté právě prováděný fázový plán celý.
 
