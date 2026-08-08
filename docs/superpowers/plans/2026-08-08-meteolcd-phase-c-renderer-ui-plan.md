@@ -386,6 +386,11 @@ Expected: empty status and approved 1:1 images. Continue to this plan's `## Phas
    if ($LASTEXITCODE -ne 0) { throw 'main cannot fast-forward to origin/main' }
    git merge --ff-only origin/main
    if ($LASTEXITCODE -ne 0) { throw 'Could not fast-forward main to origin/main' }
+   $localPhaseTip = git rev-parse feature/level1-phase-c
+   if ($LASTEXITCODE -ne 0) { throw 'Could not resolve local phase branch before merge' }
+   if ($localPhaseTip -ne $expectedPhaseTip) {
+     throw 'Local phase branch changed after review'
+   }
    git merge --no-ff feature/level1-phase-c
    if ($LASTEXITCODE -ne 0) { throw 'Could not merge reviewed phase branch' }
    ```
