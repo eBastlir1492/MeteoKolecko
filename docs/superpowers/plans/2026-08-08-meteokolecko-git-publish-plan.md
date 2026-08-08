@@ -177,16 +177,19 @@ $phasePlans = @(
   'docs/superpowers/plans/2026-08-08-meteolcd-phase-e-hardening-plan.md'
 )
 $errors = @()
+$reviewFetchPattern = 'git fetch --prune origin\r?\n\s*if \(\$LASTEXITCODE -ne 0\) \{ throw ''Could not refresh origin/main before review'' \}\r?\n\s*\$expectedOriginMain = git rev-parse origin/main'
+$mergeFetchPattern = 'git fetch --prune origin\r?\n\s*if \(\$LASTEXITCODE -ne 0\) \{ throw ''Could not refresh origin/main before integration'' \}\r?\n\s*if \(\(git rev-parse origin/main\) -ne \$expectedOriginMain\)'
 foreach ($plan in $phasePlans) {
   $body = Get-Content -Raw -LiteralPath $plan
   $gateStart = $body.IndexOf('## Phase Integration Gate')
+  $gate = if ($gateStart -ge 0) { $body.Substring($gateStart) } else { '' }
   $expectedRemote = $body.IndexOf('$expectedOriginMain = git rev-parse origin/main', $gateStart)
   $ancestry = $body.IndexOf('git merge-base --is-ancestor main origin/main', $gateStart)
   $remoteStop = $body.IndexOf('Unexpected remote main changed after review', $gateStart)
   $fastForwardStop = $body.IndexOf('main cannot fast-forward to origin/main', $gateStart)
   $fastForward = $body.IndexOf('git merge --ff-only origin/main', $gateStart)
-  if ($gateStart -lt 0 -or $expectedRemote -lt $gateStart -or $ancestry -lt $gateStart -or $remoteStop -lt $gateStart -or $fastForwardStop -lt $gateStart -or $fastForward -lt 0 -or $expectedRemote -gt $fastForward -or $ancestry -gt $fastForward -or $remoteStop -gt $fastForward -or $fastForwardStop -gt $fastForward) {
-    $errors += "$($plan): missing ordered expected-remote/ancestry stop contract before fast-forward"
+  if ($gateStart -lt 0 -or $expectedRemote -lt $gateStart -or $ancestry -lt $gateStart -or $remoteStop -lt $gateStart -or $fastForwardStop -lt $gateStart -or $fastForward -lt 0 -or $expectedRemote -gt $fastForward -or $ancestry -gt $fastForward -or $remoteStop -gt $fastForward -or $fastForwardStop -gt $fastForward -or -not [regex]::IsMatch($gate, $reviewFetchPattern) -or -not [regex]::IsMatch($gate, $mergeFetchPattern)) {
+    $errors += "$($plan): missing ordered fetch, expected-remote, or ancestry stop contract before fast-forward"
   }
 }
 if ($errors.Count -gt 0) { $errors; exit 1 }

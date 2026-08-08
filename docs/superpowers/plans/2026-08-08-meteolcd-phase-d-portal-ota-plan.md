@@ -352,12 +352,20 @@ Expected: empty status; provisioning, settings and OTA all work without WiFiMana
 2. Run the phase's complete verification command and read its full output.
 3. Confirm `git status --short` is empty and the current branch is the required
    phase branch.
-4. Push the phase branch to `origin`, run `git fetch --prune origin`, record
-   `$expectedOriginMain = git rev-parse origin/main`, and review the full
-   `origin/main...branch` diff.
-5. Switch to `main`, run `git fetch --prune origin` again, then run:
+4. Push the phase branch to `origin`, then run:
 
    ```powershell
+   git fetch --prune origin
+   if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin/main before review' }
+   $expectedOriginMain = git rev-parse origin/main
+   ```
+
+   Review the full `origin/main...branch` diff.
+5. Switch to `main`, then run:
+
+   ```powershell
+   git fetch --prune origin
+   if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin/main before integration' }
    if ((git rev-parse origin/main) -ne $expectedOriginMain) {
      throw 'Unexpected remote main changed after review'
    }
