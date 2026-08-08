@@ -442,7 +442,7 @@ git commit -m "refactor: complete MeteoLCD weather-only foundation"
 git status --short
 ```
 
-Expected: empty status. Continue with Phase B only after all A tasks are committed and hardware smoke is recorded.
+Expected: empty status; all A tasks are committed and hardware smoke is recorded. Continue to this plan's `## Phase Integration Gate`. Do not start Phase B until that gate's final fresh `origin/main` verification succeeds.
 
 ## Phase Integration Gate
 
@@ -450,33 +450,72 @@ Expected: empty status. Continue with Phase B only after all A tasks are committ
 2. Run the phase's complete verification command and read its full output.
 3. Confirm `git status --short` is empty and the current branch is the required
    phase branch.
-4. Push the phase branch to `origin`, then run:
+4. Pin the exact phase tip, push that phase branch to `origin`, and bind the
+   reviewed `origin/main`:
 
    ```powershell
+   $expectedPhaseTip = git rev-parse HEAD
+   if ($LASTEXITCODE -ne 0) { throw 'Could not pin reviewed phase tip' }
+   git push origin feature/level1-phase-a
+   if ($LASTEXITCODE -ne 0) { throw 'Could not publish phase branch' }
    git fetch --prune origin
    if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin/main before review' }
    $expectedOriginMain = git rev-parse origin/main
+   if ($LASTEXITCODE -ne 0) { throw 'Could not pin reviewed origin/main' }
+   Write-Output "Reviewed origin/main SHA: $expectedOriginMain"
+   if ((git rev-parse origin/feature/level1-phase-a) -ne $expectedPhaseTip) {
+     throw 'Remote phase branch does not match pinned phase tip'
+   }
+   Write-Output "Reviewed phase tip SHA: $expectedPhaseTip"
    ```
 
-   Review the full `origin/main...branch` diff.
-5. Switch to `main`, then run:
+   Review the full `origin/main...feature/level1-phase-a` diff. Retain both printed SHA values with the review record.
+   If either reviewed SHA is missing when resuming, restart with this review fetch and re-review the full diff.
+   Do not recalculate either expected SHA during integration.
+5. Rebind the retained review values literally and integrate:
 
    ```powershell
+   # Replace both placeholders only with the retained review-record values before running any integration command.
+   $expectedOriginMain = '<reviewed-origin-main-sha>'
+   $expectedPhaseTip = '<reviewed-phase-tip-sha>'
+   if ($expectedOriginMain -eq '<reviewed-origin-main-sha>' -or
+       $expectedPhaseTip -eq '<reviewed-phase-tip-sha>') {
+     throw 'Reviewed SHAs must be rebound from the retained review record'
+   }
+   git switch main
+   if ($LASTEXITCODE -ne 0) { throw 'Could not switch to main' }
    git fetch --prune origin
    if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin/main before integration' }
    if ((git rev-parse origin/main) -ne $expectedOriginMain) {
      throw 'Unexpected remote main changed after review'
    }
+   if ((git rev-parse origin/feature/level1-phase-a) -ne $expectedPhaseTip) {
+     throw 'Remote phase branch does not match pinned phase tip'
+   }
    git merge-base --is-ancestor main origin/main
    if ($LASTEXITCODE -ne 0) { throw 'main cannot fast-forward to origin/main' }
    git merge --ff-only origin/main
+   if ($LASTEXITCODE -ne 0) { throw 'Could not fast-forward main to origin/main' }
    git merge --no-ff feature/level1-phase-a
+   if ($LASTEXITCODE -ne 0) { throw 'Could not merge reviewed phase branch' }
    ```
 
-   Stop without merging if either check fails.
+   Stop before the dependent command if any guard fails.
 6. Re-run the phase verification on the merge result.
-7. Push `main` normally, verify local and `origin/main` object IDs match, and
-   only then create the next phase branch from that `main`.
+7. Push `main` normally and verify it against a fresh remote-tracking ref:
+
+   ```powershell
+   git push origin main
+   if ($LASTEXITCODE -ne 0) { throw 'Could not publish integrated main' }
+   git fetch --prune origin
+   if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin after main push' }
+   if ((git rev-parse main) -ne (git rev-parse origin/main)) {
+     throw 'Local main does not match fresh origin/main'
+   }
+   ```
+
+   Only after this final comparison succeeds may the next phase begin and its
+   branch be created from the verified `main`.
 
 Do not delete the phase branch until the merge commit and remote `main` have
 been verified. Never use force-push to repair a failed gate.

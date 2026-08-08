@@ -1,7 +1,12 @@
 # MeteoKolecko Git a GitHub workflow — návrhová specifikace
 
 **Datum:** 2026-08-08
-**Stav:** Schválený návrh čekající na provedení
+**Stav:** Implementováno a ověřeno
+
+**Ověření:** [docs/verification/git-publication.md](../../verification/git-publication.md)
+
+Tento stav se vztahuje pouze na publikaci Git workflow. Implementace produktu
+Level 1 ještě nezačala.
 
 ## 1. Cíl
 
