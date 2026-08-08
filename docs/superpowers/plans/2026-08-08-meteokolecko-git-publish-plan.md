@@ -333,7 +333,7 @@ Expected: evidence commit published, object IDs match, status empty.
 - Consumes: published, matching `main` from Task 2.
 - Produces: GitHub protection against force-push/deletion and `feature/level1-phase-a` tracking its origin counterpart at the final workflow checkpoint.
 
-- [ ] **Step 1: Configure the minimal GitHub main protection**
+- [x] **Step 1: Configure the minimal GitHub main protection**
 
 In `eBastlir1492/MeteoKolecko` open **Settings → Rules → Rulesets**, create an active branch ruleset targeting the default branch, enable only:
 
@@ -346,7 +346,7 @@ Required status checks: none until CI exists
 
 Do not enable a status check that the repository does not provide. Capture the ruleset name and active status for the evidence document.
 
-- [ ] **Step 2: Create and publish the Phase A branch from verified main**
+- [x] **Step 2: Create and publish the Phase A branch from verified main**
 
 ```powershell
 git switch main
@@ -363,7 +363,7 @@ if ((git rev-parse feature/level1-phase-a) -ne
 
 Expected: new branch is a direct child pointer of the verified `main`, publishes normally and tracks `origin/feature/level1-phase-a`.
 
-- [ ] **Step 3: Add the final branch and protection evidence**
+- [x] **Step 3: Add the final branch and protection evidence**
 
 Do `docs/verification/git-publication.md` přidat sekce `## Phase A branch` a `## GitHub main protection` s těmito skutečnými výsledky:
 
@@ -374,7 +374,7 @@ Do `docs/verification/git-publication.md` přidat sekce `## Phase A branch` a `#
 
 Žádná prázdná evidence sekce ani neověřené tvrzení nesmí zůstat.
 
-- [ ] **Step 4: Commit the bootstrap record on Phase A and publish it**
+- [x] **Step 4: Commit the bootstrap record on Phase A and publish it**
 
 ```powershell
 git add docs/verification/git-publication.md `
@@ -386,7 +386,7 @@ git fetch origin
 
 Expected: commit exists only on the Phase A branch until its later phase merge.
 
-- [ ] **Step 5: Run the final topology and resume verification**
+- [x] **Step 5: Run the final topology and resume verification**
 
 ```powershell
 if ((git branch --show-current) -ne 'feature/level1-phase-a') {

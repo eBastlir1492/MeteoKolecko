@@ -48,3 +48,44 @@ ada551ab33b56974e06fa1d7757deb5610e93ded refs/tags/v0.5.2
 ## Force-push audit
 
 Force-push used: no
+
+## Phase A branch
+
+Immediately after branch creation and before the bootstrap evidence commit, the
+local and remote Phase A branch object IDs were identical:
+
+```text
+local feature/level1-phase-a:         e2077a33808eb80da5baf0a6fce8efa3bba85481
+origin/feature/level1-phase-a:        e2077a33808eb80da5baf0a6fce8efa3bba85481
+```
+
+`git branch -vv` proved the upstream tracking relationship:
+
+```text
+* feature/level1-phase-a e2077a3 [origin/feature/level1-phase-a] chore: record MeteoKolecko fork publication
+```
+
+## GitHub main protection
+
+The full repository ruleset detail returned by the GitHub REST API measured:
+
+```text
+Ruleset name: MeteoKolecko main protection
+Ruleset ID: 20575432
+Source: eBastlir1492/MeteoKolecko
+Source type: Repository
+Target: branch
+Enforcement: active
+Included refs: ~DEFAULT_BRANCH
+Excluded refs: none
+Bypass actors: none
+```
+
+The ruleset contains exactly these two rule types:
+
+```text
+Restrict deletions: enabled (deletion)
+Block force pushes: enabled (non_fast_forward)
+Require a pull request before merging: disabled (pull_request rule absent)
+Required status checks: none (required_status_checks rule absent)
+```
