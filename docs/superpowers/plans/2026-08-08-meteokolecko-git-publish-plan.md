@@ -226,7 +226,7 @@ Expected: commit succeeds and status is empty.
 - Consumes: clean `main` after Task 1; fork base `fcf0ced`; Git Credential Manager.
 - Produces: protected local remote topology, published fast-forward `origin/main`, preserved original tags and a committed evidence record.
 
-- [ ] **Step 1: Run immutable preflight checks**
+- [x] **Step 1: Run immutable preflight checks**
 
 ```powershell
 if (git status --porcelain=v1) { throw 'Worktree must be clean' }
@@ -242,7 +242,7 @@ git log --oneline --decorate fcf0ced215632be0bc3ca42b0b0b8468a850b430..HEAD
 
 Expected: clean `main`, ancestry success, only `docs/*` differs, and the sole current remote named `origin` points to `petus/MeteoPlaneRadar`.
 
-- [ ] **Step 2: Rewire remotes without touching commits**
+- [x] **Step 2: Rewire remotes without touching commits**
 
 ```powershell
 git remote rename origin upstream
@@ -263,7 +263,7 @@ upstream  https://github.com/petus/MeteoPlaneRadar.git (fetch)
 upstream  DISABLED (push)
 ```
 
-- [ ] **Step 3: Prove fast-forward safety before the first push**
+- [x] **Step 3: Prove fast-forward safety before the first push**
 
 ```powershell
 $remoteBase = git rev-parse origin/main
@@ -280,7 +280,7 @@ git log --graph --decorate --oneline origin/main..main
 
 Expected: remote base exact, ancestry success and only reviewed documentation commits ahead.
 
-- [ ] **Step 4: Publish main and original tags without force**
+- [x] **Step 4: Publish main and original tags without force**
 
 ```powershell
 git push -u origin main
@@ -290,7 +290,7 @@ git fetch --prune origin
 
 Git Credential Manager may open GitHub login. Do not copy credentials into the terminal. Expected: normal fast-forward push and four original tags created or reported up-to-date.
 
-- [ ] **Step 5: Create the publication evidence and commit it**
+- [x] **Step 5: Create the publication evidence and commit it**
 
 Create `docs/verification/git-publication.md` with actual output values and these exact sections:
 
