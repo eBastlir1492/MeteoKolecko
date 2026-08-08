@@ -450,9 +450,22 @@ Expected: empty status. Continue with Phase B only after all A tasks are committ
 2. Run the phase's complete verification command and read its full output.
 3. Confirm `git status --short` is empty and the current branch is the required
    phase branch.
-4. Push the phase branch to `origin` and review the full `main...branch` diff.
-5. Switch to `main`, fast-forward it from `origin/main`, then merge the phase
-   with `git merge --no-ff feature/level1-phase-a`.
+4. Push the phase branch to `origin`, run `git fetch --prune origin`, record
+   `$expectedOriginMain = git rev-parse origin/main`, and review the full
+   `origin/main...branch` diff.
+5. Switch to `main`, run `git fetch --prune origin` again, then run:
+
+   ```powershell
+   if ((git rev-parse origin/main) -ne $expectedOriginMain) {
+     throw 'Unexpected remote main changed after review'
+   }
+   git merge-base --is-ancestor main origin/main
+   if ($LASTEXITCODE -ne 0) { throw 'main cannot fast-forward to origin/main' }
+   git merge --ff-only origin/main
+   git merge --no-ff feature/level1-phase-a
+   ```
+
+   Stop without merging if either check fails.
 6. Re-run the phase verification on the merge result.
 7. Push `main` normally, verify local and `origin/main` object IDs match, and
    only then create the next phase branch from that `main`.

@@ -166,7 +166,33 @@ foreach ($branch in $requiredBranches) {
 }
 ```
 
-Expected: oba příkazy exit 0, žádná nevyřešená šablona ani whitespace error.
+Then run this focused integration-gate assertion:
+
+```powershell
+$phasePlans = @(
+  'docs/superpowers/plans/2026-08-08-meteolcd-phase-a-foundation-plan.md',
+  'docs/superpowers/plans/2026-08-08-meteolcd-phase-b-weather-data-plan.md',
+  'docs/superpowers/plans/2026-08-08-meteolcd-phase-c-renderer-ui-plan.md',
+  'docs/superpowers/plans/2026-08-08-meteolcd-phase-d-portal-ota-plan.md',
+  'docs/superpowers/plans/2026-08-08-meteolcd-phase-e-hardening-plan.md'
+)
+$errors = @()
+foreach ($plan in $phasePlans) {
+  $body = Get-Content -Raw -LiteralPath $plan
+  $gateStart = $body.IndexOf('## Phase Integration Gate')
+  $expectedRemote = $body.IndexOf('$expectedOriginMain = git rev-parse origin/main', $gateStart)
+  $ancestry = $body.IndexOf('git merge-base --is-ancestor main origin/main', $gateStart)
+  $remoteStop = $body.IndexOf('Unexpected remote main changed after review', $gateStart)
+  $fastForwardStop = $body.IndexOf('main cannot fast-forward to origin/main', $gateStart)
+  $fastForward = $body.IndexOf('git merge --ff-only origin/main', $gateStart)
+  if ($gateStart -lt 0 -or $expectedRemote -lt $gateStart -or $ancestry -lt $gateStart -or $remoteStop -lt $gateStart -or $fastForwardStop -lt $gateStart -or $fastForward -lt 0 -or $expectedRemote -gt $fastForward -or $ancestry -gt $fastForward -or $remoteStop -gt $fastForward -or $fastForwardStop -gt $fastForward) {
+    $errors += "$($plan): missing ordered expected-remote/ancestry stop contract before fast-forward"
+  }
+}
+if ($errors.Count -gt 0) { $errors; exit 1 }
+```
+
+Expected: všechny verification commands exit 0, žádná nevyřešená šablona ani whitespace error.
 
 - [x] **Step 5: Commit the Level 1 branch contract**
 
